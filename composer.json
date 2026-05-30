@@ -1,0 +1,36 @@
+{
+  "name": "paymos/woocommerce-paymos",
+  "description": "Paymos payment gateway for WooCommerce.",
+  "type": "wordpress-plugin",
+  "license": "GPL-2.0-or-later",
+  "keywords": ["paymos", "woocommerce", "wordpress", "payments", "stablecoins", "usdt", "usdc", "crypto"],
+  "homepage": "https://paymos.io/product/plugins/woocommerce",
+  "support": {
+    "issues": "https://github.com/paymos-labs/woocommerce/issues",
+    "docs": "https://paymos.io/docs/cms-woocommerce",
+    "email": "support@paymos.io"
+  },
+  "authors": [
+    {
+      "name": "Paymos Labs",
+      "email": "support@paymos.io",
+      "homepage": "https://paymos.io"
+    }
+  ],
+  "require": {
+    "php": ">=7.4",
+    "paymos/php-sdk": "^1.0"
+  },
+  "repositories": [
+    {
+      "type": "vcs",
+      "url": "https://github.com/paymos-labs/php-sdk"
+    }
+  ],
+  "autoload": {
+    "psr-4": {
+      "PaymosWooCommerce\\": "includes/"
+    }
+  }
+}
+

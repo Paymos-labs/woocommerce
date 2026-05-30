@@ -1,0 +1,14 @@
+vendor/
+node_modules/
+composer.lock
+*.log
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+.env
+.env.*
+*.bak
+*.swp
+.phpunit.result.cache
+paymos-config.php

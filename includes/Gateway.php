@@ -16,19 +16,19 @@ final class Gateway extends \WC_Payment_Gateway
     {
         $this->id = 'paymos';
         $this->method_title = __('Paymos', 'paymos-woocommerce');
-        $this->method_description = __('Accept stablecoin payments through Paymos.', 'paymos-woocommerce');
+        $this->method_description = __('Accept USDT and USDC at checkout. Settled on-chain in the same stablecoin, no chargebacks.', 'paymos-woocommerce');
         $this->icon = apply_filters(
             'woocommerce_paymos_icon',
             plugins_url('assets/img/paymos.svg', PAYMOS_WC_PLUGIN_FILE)
         );
         $this->has_fields = false;
-        $this->supports = array('products');
+        $this->supports = array('products', 'refunds');
 
         $this->init_form_fields();
         $this->init_settings();
 
         $this->title = $this->get_option('title', __('Pay with stablecoins', 'paymos-woocommerce'));
-        $this->description = $this->get_option('description', __('Pay with USDT, USDC, DAI and other stablecoins on Tron, Ethereum, BSC, Polygon, Arbitrum, Optimism, Base or TON. No price volatility, no chargebacks, settlement on-chain in minutes.', 'paymos-woocommerce'));
+        $this->description = $this->get_option('description', __('Pay with USDT or USDC across 13 networks — Tron, Ethereum, Polygon, Base, Solana and more. No price volatility, no chargebacks, settlement on-chain in minutes.', 'paymos-woocommerce'));
         $this->enabled = $this->get_option('enabled', 'no');
 
         add_action('woocommerce_update_options_payment_gateways_' . $this->id, array($this, 'process_admin_options'));
@@ -51,7 +51,7 @@ final class Gateway extends \WC_Payment_Gateway
             'description' => array(
                 'title' => __('Description', 'paymos-woocommerce'),
                 'type' => 'textarea',
-                'default' => __('Pay with USDT, USDC, DAI and other stablecoins on Tron, Ethereum, BSC, Polygon, Arbitrum, Optimism, Base or TON. No price volatility, no chargebacks, settlement on-chain in minutes.', 'paymos-woocommerce'),
+                'default' => __('Pay with USDT or USDC across 13 networks — Tron, Ethereum, Polygon, Base, Solana and more. No price volatility, no chargebacks, settlement on-chain in minutes.', 'paymos-woocommerce'),
             ),
             'mode' => array(
                 'title' => __('Mode', 'paymos-woocommerce'),
@@ -149,6 +149,36 @@ final class Gateway extends \WC_Payment_Gateway
         return array(
             'result' => 'success',
             'redirect' => $paymentUrl,
+        );
+    }
+
+    /**
+     * Stablecoin payments are settled on-chain and cannot be reversed
+     * programmatically — Paymos exposes no refund API. Record the merchant's
+     * intent as an order note and decline the automatic refund so WooCommerce
+     * never books a refund that did not move on-chain.
+     *
+     * @param int $order_id
+     * @param float|null $amount
+     * @param string $reason
+     * @return \WP_Error
+     */
+    public function process_refund($order_id, $amount = null, $reason = '')
+    {
+        $order = wc_get_order($order_id);
+        if ($order) {
+            $note = sprintf(
+                /* translators: 1: refund amount with currency, 2: refund reason (may be empty) */
+                __('Paymos refund requested for %1$s. Send the refund on-chain from your Paymos dashboard — WooCommerce did not record an automatic refund. %2$s', 'paymos-woocommerce'),
+                $amount !== null ? wc_price($amount, array('currency' => $order->get_currency())) : $order->get_formatted_order_total(),
+                $reason !== '' ? sprintf(__('Reason: %s', 'paymos-woocommerce'), $reason) : ''
+            );
+            $order->add_order_note($note);
+        }
+
+        return new \WP_Error(
+            'paymos_manual_refund',
+            __('Paymos refunds are processed manually on-chain. Open the invoice in your Paymos dashboard and send the refund to the customer. No automatic refund was recorded.', 'paymos-woocommerce')
         );
     }
 

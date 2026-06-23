@@ -6,6 +6,19 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 The public release history also lives at [paymos.io/changelog](https://paymos.io/changelog).
 
+## [1.0.1] - 2026-06-22
+
+### Added
+- Russian localization: `languages/` with `.pot` + `ru_RU` `.po`/`.mo` (59 strings).
+- Localization is now bundled in the dashboard ZIP (was previously omitted from the build).
+
+### Changed
+- `load_plugin_textdomain` moved to the `init` hook for WordPress 6.7+ compatibility; JS block strings fall back through `wp.i18n.__`.
+
+### Fixed
+- README no longer advertises a non-existent "Status mappings" setting or an admin "force-check" action (neither exists in the code).
+- Removed DAI from checkout copy across the gateway, Blocks, and JS — DAI is Ethereum-only and was misrepresented as broadly available.
+
 ## [1.0.0] - 2026-05-30
 
 ### Added

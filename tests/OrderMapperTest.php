@@ -109,6 +109,35 @@ function test_order_mapper_completes_paid_invoice()
     assertSameValue('paid', $order->meta['_paymos_last_status'], 'mapper must store last Paymos status.');
 }
 
+function test_order_mapper_uses_payment_transfers_for_transaction_id()
+{
+    $order = new FakeOrder();
+    $order->update_meta_data('_paymos_invoice_amount', '100.00');
+    $order->update_meta_data('_paymos_invoice_currency', 'USD');
+    $mapper = new OrderMapper();
+
+    $mapper->apply($order, array(
+        'event_id' => 'evt_payment_transfer',
+        'event_type' => 'invoice.paid',
+        'data' => array(
+            'invoice_id' => 'inv_123',
+            'status' => 'paid',
+            'order' => array('amount' => '100.00', 'currency' => 'USD'),
+            'payment' => array(
+                'transfers' => array(
+                    array('tx_hash' => '0xconfirming', 'status' => 'confirming'),
+                    array('tx_hash' => '0xconfirmed', 'status' => 'confirmed', 'explorer_url' => 'https://etherscan.io/tx/0xconfirmed'),
+                ),
+            ),
+        ),
+    ));
+
+    assertTrueValue($order->paid, 'invoice.paid must complete Woo order.');
+    assertSameValue('0xconfirmed', $order->transactionId, 'transaction id must come from data.payment.transfers[].');
+    assertSameValue('0xconfirmed', $order->meta['_paymos_tx_hash'], 'mapper must persist the confirmed tx hash as order meta.');
+    assertSameValue('https://etherscan.io/tx/0xconfirmed', $order->meta['_paymos_explorer_url'], 'mapper must persist the confirmed transfer explorer url.');
+}
+
 function test_order_mapper_does_not_complete_when_order_amount_changed()
 {
     $order = new FakeOrder('120.00', 'USD');

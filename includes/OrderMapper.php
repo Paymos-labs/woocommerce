@@ -48,12 +48,20 @@ final class OrderMapper
                     break;
                 }
 
-                $order->payment_complete($this->transactionId($event));
+                $order->update_meta_data('_paymos_amount_mismatch', 'no');
+                $transfer = $this->selectedTransfer($event);
+                if ($transfer['tx_hash'] !== '') {
+                    $order->update_meta_data('_paymos_tx_hash', $transfer['tx_hash']);
+                }
+                if ($transfer['explorer_url'] !== '') {
+                    $order->update_meta_data('_paymos_explorer_url', $transfer['explorer_url']);
+                }
+                $order->payment_complete($transfer['tx_hash'] !== '' ? $transfer['tx_hash'] : $this->fallbackTransactionId($event));
                 $order->add_order_note(__('Paymos payment completed.', 'paymos-woocommerce'));
                 break;
 
             case StatusMapper::ACTION_FAIL_ORDER:
-                $order->update_status('failed', __('Paymos payment failed or expired.', 'paymos-woocommerce'));
+                $order->update_status('failed', __('Paymos invoice was underpaid.', 'paymos-woocommerce'));
                 $order->add_order_note(__('Paymos invoice was underpaid.', 'paymos-woocommerce'));
                 break;
 
@@ -61,77 +69,75 @@ final class OrderMapper
                 $order->update_status('cancelled', __('Paymos invoice was cancelled.', 'paymos-woocommerce'));
                 $order->add_order_note(__('Paymos invoice was cancelled.', 'paymos-woocommerce'));
                 break;
-
-            default:
-                $this->applyLegacyAction($order, $eventType);
         }
 
         $this->save($order);
     }
 
     /**
+     * Select the on-chain transfer whose hash + explorer link represent the
+     * payment. Webhook payload (InvoiceStatusContract) carries transfers inside
+     * data.payment.transfers[] — each entry has a string `tx_hash`, an
+     * `explorer_url`, and a `status` of "confirming" | "confirmed". Prefer the
+     * latest confirmed transfer; fall back to the latest of any status. Returns
+     * empty strings when no transfers are present (sandbox-confirmed / simulated
+     * payment, where the server omits transfers entirely).
+     *
+     * `data.transfers` (top-level) is read only as a defensive fallback for any
+     * payload still queued from an older server build — the canonical location
+     * is data.payment.transfers.
+     *
      * @param array<string, mixed> $event
+     * @return array{tx_hash: string, explorer_url: string}
      */
-    private function transactionId(array $event)
+    private function selectedTransfer(array $event)
     {
-        // Webhook payload (InvoiceStatusContract) carries on-chain hashes inside
-        // data.transfers[]. Pick the latest confirmed transfer for the WC order
-        // transaction id; fall back to invoice id when no transfers are present
-        // (e.g. sandbox-confirmed invoice with simulated payment).
-        if (isset($event['data']['transfers']) && is_array($event['data']['transfers'])) {
-            $confirmed = '';
-            $latest = '';
-            foreach ($event['data']['transfers'] as $transfer) {
+        $transfers = null;
+        if (isset($event['data']['payment']['transfers']) && is_array($event['data']['payment']['transfers'])) {
+            $transfers = $event['data']['payment']['transfers'];
+        } elseif (isset($event['data']['transfers']) && is_array($event['data']['transfers'])) {
+            $transfers = $event['data']['transfers'];
+        }
+
+        $confirmed = null;
+        $latest = null;
+        if ($transfers !== null) {
+            foreach ($transfers as $transfer) {
                 if (!is_array($transfer)) {
                     continue;
                 }
-                if (!isset($transfer['tx_hash']) || !is_string($transfer['tx_hash'])) {
+                if (!isset($transfer['tx_hash']) || !is_string($transfer['tx_hash']) || $transfer['tx_hash'] === '') {
                     continue;
                 }
-                $hash = $transfer['tx_hash'];
-                $latest = $hash;
+                $latest = $transfer;
                 $status = isset($transfer['status']) && is_string($transfer['status'])
                     ? strtolower($transfer['status'])
                     : '';
                 if ($status === 'confirmed') {
-                    $confirmed = $hash;
+                    $confirmed = $transfer;
                 }
-            }
-            if ($confirmed !== '') {
-                return $confirmed;
-            }
-            if ($latest !== '') {
-                return $latest;
             }
         }
 
-        return isset($event['data']['invoice_id']) ? (string) $event['data']['invoice_id'] : '';
+        $chosen = $confirmed !== null ? $confirmed : $latest;
+        if ($chosen === null) {
+            return array('tx_hash' => '', 'explorer_url' => '');
+        }
+
+        return array(
+            'tx_hash' => (string) $chosen['tx_hash'],
+            'explorer_url' => isset($chosen['explorer_url']) && is_string($chosen['explorer_url'])
+                ? $chosen['explorer_url']
+                : '',
+        );
     }
 
-    private function applyLegacyAction($order, $eventType)
+    /**
+     * @param array<string, mixed> $event
+     */
+    private function fallbackTransactionId(array $event)
     {
-        $action = StatusMapper::paymentAction($eventType);
-        if ($order->is_paid() && in_array($action, array(StatusMapper::ACTION_FAILED, StatusMapper::ACTION_CANCELLED), true)) {
-            $order->add_order_note(__('Paymos ignored a stale invoice status after payment completed.', 'paymos-woocommerce'));
-            return;
-        }
-
-        switch ($action) {
-            case StatusMapper::ACTION_PROCESSING:
-                if (!$order->is_paid()) {
-                    $order->update_status('on-hold', __('Paymos payment is processing.', 'paymos-woocommerce'));
-                    $order->add_order_note(__('Paymos payment is processing.', 'paymos-woocommerce'));
-                }
-                break;
-            case StatusMapper::ACTION_FAILED:
-                $order->update_status('failed', __('Paymos payment failed.', 'paymos-woocommerce'));
-                $order->add_order_note(__('Paymos payment failed.', 'paymos-woocommerce'));
-                break;
-            case StatusMapper::ACTION_CANCELLED:
-                $order->update_status('cancelled', __('Paymos invoice was cancelled.', 'paymos-woocommerce'));
-                $order->add_order_note(__('Paymos invoice was cancelled.', 'paymos-woocommerce'));
-                break;
-        }
+        return isset($event['data']['invoice_id']) ? (string) $event['data']['invoice_id'] : '';
     }
 
     /**

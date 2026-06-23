@@ -49,7 +49,7 @@ final class Blocks extends AbstractPaymentMethodType
     {
         return array(
             'title' => isset($this->settings['title']) ? (string) $this->settings['title'] : __('Pay with stablecoins', 'paymos-woocommerce'),
-            'description' => isset($this->settings['description']) ? (string) $this->settings['description'] : __('Pay with USDT, USDC, DAI and other stablecoins on Tron, Ethereum, BSC, Polygon, Arbitrum, Optimism, Base or TON. No price volatility, no chargebacks, settlement on-chain in minutes.', 'paymos-woocommerce'),
+            'description' => isset($this->settings['description']) ? (string) $this->settings['description'] : __('Pay with USDT or USDC across 13 networks — Tron, Ethereum, Polygon, Base, Solana and more. No price volatility, no chargebacks, settlement on-chain in minutes.', 'paymos-woocommerce'),
             'supports' => array('products'),
         );
     }

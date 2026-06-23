@@ -2,12 +2,15 @@
 Contributors: paymos
 Tags: woocommerce, payments, crypto, paymos, checkout-blocks
 Requires at least: 5.9
-Tested up to: 6.9
+Tested up to: 7.0
 Requires PHP: 7.4
+Requires Plugins: woocommerce
+WC requires at least: 8.0
+WC tested up to: 10.8
 Stable tag: 1.0.0
-License: GPLv2 or later
+License: GPL-2.0-or-later
 
-Official Paymos payment gateway for WooCommerce.
+Accept USDT and USDC at WooCommerce checkout — native stablecoin settlement, no chargebacks.
 
 == Description ==
 
@@ -29,9 +32,11 @@ The plugin supports:
 == Requirements ==
 
 * WordPress 5.9 or newer.
-* WooCommerce 6.0 or newer.
+* WooCommerce 8.0 or newer.
 * PHP 7.4 or newer.
 * A Paymos project.
+
+No Composer install is required on the WordPress server. The generated archive ships with the Paymos PHP SDK bundled.
 
 == Installation ==
 

@@ -93,7 +93,7 @@ High-Performance Order Storage (HPOS) and Checkout Blocks both supported.
 2. Plugin creates a Paymos invoice via the Merchant API using the order total and currency.
 3. Customer is redirected to the hosted Paymos page (or sees the embedded checkout block on the same domain).
 4. Customer pays in USDT or USDC on a supported chain.
-5. Paymos confirms the on-chain payment using a tiered policy — small tickets clear in seconds, large tickets wait for more confirmations.
+5. Paymos confirms the on-chain payment with confirmation depth that scales to the order size — smaller amounts clear faster, larger amounts wait for more confirmations.
 6. Paymos sends a signed webhook to your store. Plugin verifies signature, timestamp, and amount, then marks the order paid.
 7. Customer lands on your success page.
 
@@ -112,7 +112,6 @@ The ZIP pre-fills everything technical. WooCommerce admin only exposes presentat
 | Mode | `Sandbox` for tests, `Live` for production. Switch without re-uploading. |
 | Title | Customer-facing label at checkout. |
 | Description | Short blurb under the title at checkout. |
-| Status mappings | Map Paymos invoice states to WooCommerce order states. |
 | Logging | Enable verbose logs in `WooCommerce → Status → Logs`. |
 
 Credentials are **read-only inside the plugin** — they live in `wp-content/plugins/paymos-woocommerce/paymos-config.php` and were written by the dashboard ZIP. If you ever need to regenerate them, [download a fresh ZIP](https://paymos.io/dashboard/cms) and reinstall.
@@ -124,7 +123,7 @@ Credentials are **read-only inside the plugin** — they live in `wp-content/plu
 The dashboard registers your webhook endpoint against your store domain **before the ZIP is generated**. The plugin's webhook URL is:
 
 ```
-https://your-store.com/?wc-api=paymos_webhook
+https://your-store.com/wp-json/paymos/v1/webhook
 ```
 
 You will not need to set this up yourself. You also will not need to handle the signing-secret rotation — the plugin reads it from `paymos-config.php` and rolls with whatever the dashboard ships.
@@ -185,7 +184,7 @@ Paymos rejects the on-chain transaction at the domain boundary. The order stays 
 No. Crypto settlement is final on confirmation.
 
 **What if the webhook never arrives?**
-The reconciler polls Paymos every 10 minutes for unresolved invoices. Orders catch up automatically. You can also force-check a single order from the plugin admin, or replay any event from [paymos.io/dashboard/developers/webhooks](https://paymos.io/dashboard/developers/webhooks).
+The reconciler polls Paymos every 10 minutes for unresolved invoices. Orders catch up automatically. You can also replay any event from [paymos.io/dashboard/developers/webhooks](https://paymos.io/dashboard/developers/webhooks).
 
 **Which network is cheapest for the customer?**
 The customer picks the network on the hosted Paymos page — they see live gas before paying.

@@ -24,6 +24,7 @@ spl_autoload_register(static function ($class) {
             getenv('PAYMOS_SDK_SRC')
                 ? rtrim(getenv('PAYMOS_SDK_SRC'), '/\\') . '/' . str_replace('\\', '/', $relative) . '.php'
                 : null,
+            dirname(rtrim(PAYMOS_WC_PLUGIN_DIR, '/\\')) . '/php-sdk/src/' . str_replace('\\', '/', $relative) . '.php',
         );
         foreach ($candidates as $candidate) {
             if ($candidate !== null && is_file($candidate)) {
@@ -138,4 +139,9 @@ function assertTrueValue($actual, $message)
     if ($actual !== true) {
         throw new RuntimeException($message);
     }
+}
+
+function paymos_signed_header($secret, $body, $timestamp = 1709000000)
+{
+    return 't=' . $timestamp . ',v1=' . hash_hmac('sha256', $timestamp . '.' . $body, $secret);
 }

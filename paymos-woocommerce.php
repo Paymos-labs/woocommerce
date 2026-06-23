@@ -9,10 +9,11 @@
  * License: GPL-2.0-or-later
  * Text Domain: paymos-woocommerce
  * Requires at least: 5.9
+ * Tested up to: 7.0
  * Requires PHP: 7.4
  * Requires Plugins: woocommerce
- * WC requires at least: 6.0
- * WC tested up to: 9.8
+ * WC requires at least: 8.0
+ * WC tested up to: 10.8
  */
 
 defined('ABSPATH') || exit;
@@ -25,10 +26,23 @@ require_once PAYMOS_WC_PLUGIN_DIR . 'includes/Autoloader.php';
 
 PaymosWooCommerce\Autoloader::register();
 
+add_action('init', static function () {
+    load_plugin_textdomain(
+        'paymos-woocommerce',
+        false,
+        dirname(plugin_basename(PAYMOS_WC_PLUGIN_FILE)) . '/languages'
+    );
+});
+
 add_action('before_woocommerce_init', static function () {
     if (class_exists('\Automattic\WooCommerce\Utilities\FeaturesUtil')) {
         \Automattic\WooCommerce\Utilities\FeaturesUtil::declare_compatibility(
             'custom_order_tables',
+            PAYMOS_WC_PLUGIN_FILE,
+            true
+        );
+        \Automattic\WooCommerce\Utilities\FeaturesUtil::declare_compatibility(
+            'cart_checkout_blocks',
             PAYMOS_WC_PLUGIN_FILE,
             true
         );
@@ -60,6 +74,8 @@ add_action('add_meta_boxes', static function () {
     PaymosWooCommerce\AdminOrderMetaBox::register();
 });
 
+PaymosWooCommerce\StorefrontHooks::register();
+
 add_action('rest_api_init', static function () {
     PaymosWooCommerce\WebhookController::register_routes();
 });
@@ -69,3 +85,4 @@ add_action('init', array(PaymosWooCommerce\Reconciler::class, 'maybe_schedule'))
 add_action(PaymosWooCommerce\Reconciler::HOOK, array(PaymosWooCommerce\Reconciler::class, 'run'));
 
 register_deactivation_hook(PAYMOS_WC_PLUGIN_FILE, array(PaymosWooCommerce\Reconciler::class, 'unschedule'));
+register_activation_hook(PAYMOS_WC_PLUGIN_FILE, array(PaymosWooCommerce\EventStore::class, 'install'));

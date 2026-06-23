@@ -74,7 +74,8 @@ final class AdminOrderMetaBox
         }
 
         if (isset($_GET['id']) && function_exists('wc_get_order')) {
-            return wc_get_order(absint($_GET['id']));
+            $rawId = function_exists('wp_unslash') ? wp_unslash($_GET['id']) : $_GET['id'];
+            return wc_get_order(absint($rawId));
         }
 
         return null;

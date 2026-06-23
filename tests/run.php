@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 require __DIR__ . '/bootstrap.php';
 require __DIR__ . '/ConfigTest.php';
+require __DIR__ . '/EventStoreTest.php';
 require __DIR__ . '/OrderMapperTest.php';
-require __DIR__ . '/WebhookEnvironmentVerifierTest.php';
 require __DIR__ . '/WebhookControllerTest.php';
 require __DIR__ . '/ReconcilerTest.php';
 

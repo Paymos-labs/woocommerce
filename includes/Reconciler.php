@@ -186,7 +186,7 @@ final class Reconciler
             case StatusMapper::ACTION_CONFIRMING:
                 return 'invoice.confirming';
             case StatusMapper::ACTION_AWAITING_PAYMENT:
-                return 'invoice.underpaid_waiting';
+                return $status === 'awaiting_payment' ? 'invoice.awaiting_payment' : 'invoice.underpaid_waiting';
             case StatusMapper::ACTION_PAYMENT_COMPLETE:
                 return 'invoice.paid';
             case StatusMapper::ACTION_FAIL_ORDER:

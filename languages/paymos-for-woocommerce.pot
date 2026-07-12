@@ -3,13 +3,13 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: Paymos for WooCommerce 1.0.0\n"
-"Report-Msgid-Bugs-To: https://wordpress.org/support/plugin/paymos-for-woocommerce\n"
+"Report-Msgid-Bugs-To: https://wordpress.org/support/plugin/html\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-07-11T04:18:03+00:00\n"
+"POT-Creation-Date: 2026-07-12T10:32:14+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.12.0\n"
 "X-Domain: paymos-for-woocommerce\n"
@@ -33,7 +33,6 @@ msgstr ""
 #. Author of the plugin
 #: paymos-woocommerce.php
 #: includes/Gateway.php:16
-#: assets/js/blocks/paymos-blocks.js:8
 msgid "Paymos"
 msgstr ""
 
@@ -90,8 +89,27 @@ msgstr ""
 #: includes/Blocks.php:55
 #: includes/Gateway.php:29
 #: includes/Gateway.php:52
-#: assets/js/blocks/paymos-blocks.js:9
 msgid "Pay with USDT or USDC across 13 networks — Tron, Ethereum, Polygon, Base, Solana and more. No price volatility, no chargebacks, settlement on-chain in minutes."
+msgstr ""
+
+#: includes/ConnectController.php:44
+msgid "Starting secure connection…"
+msgstr ""
+
+#: includes/ConnectController.php:45
+msgid "Waiting for approval in Paymos…"
+msgstr ""
+
+#: includes/ConnectController.php:46
+msgid "Paymos connected. Reloading settings…"
+msgstr ""
+
+#: includes/ConnectController.php:47
+msgid "Paymos connection failed."
+msgstr ""
+
+#: includes/ConnectController.php:48
+msgid "Allow pop-ups for this page and try again."
 msgstr ""
 
 #: includes/Gateway.php:17
@@ -119,27 +137,26 @@ msgid "Mode"
 msgstr ""
 
 #: includes/Gateway.php:59
-#: includes/Gateway.php:288
-#: includes/Gateway.php:348
+#: includes/Gateway.php:285
 msgid "Sandbox"
 msgstr ""
 
 #: includes/Gateway.php:60
-#: includes/Gateway.php:288
-#: includes/Gateway.php:349
+#: includes/Gateway.php:286
 msgid "Live"
 msgstr ""
 
 #: includes/Gateway.php:62
-msgid "Configure Sandbox and Live credentials below, then switch modes when you are ready."
+msgid "Connect once, test in Sandbox, then switch to Live when you are ready."
 msgstr ""
 
 #: includes/Gateway.php:65
-msgid "Paymos credentials"
+#: includes/Gateway.php:269
+msgid "Connect Paymos"
 msgstr ""
 
 #: includes/Gateway.php:67
-msgid "Credentials are encrypted with this WordPress installation security salts. Saved values are never rendered back into the page."
+msgid "Opens Paymos for approval. Paymos reuses or creates one Payment key per environment and reuses or creates the dedicated webhook for this exact store URL."
 msgstr ""
 
 #: includes/Gateway.php:70
@@ -147,7 +164,7 @@ msgid "Webhook URL"
 msgstr ""
 
 #: includes/Gateway.php:72
-msgid "Register this URL for both Sandbox and Live projects in Paymos. Dashboard-generated packages register it automatically."
+msgid "Registered automatically for Sandbox and Live when you connect this store."
 msgstr ""
 
 #: includes/Gateway.php:75
@@ -166,106 +183,63 @@ msgstr ""
 msgid "Write Paymos logs to WooCommerce logs"
 msgstr ""
 
-#: includes/Gateway.php:109
+#: includes/Gateway.php:92
 msgid "Paymos payment error: order not found."
 msgstr ""
 
-#: includes/Gateway.php:133
+#: includes/Gateway.php:116
 msgid "Paymos payment error: unable to create invoice."
 msgstr ""
 
-#: includes/Gateway.php:137
+#: includes/Gateway.php:120
 msgid "Paymos payment error: configuration is invalid."
 msgstr ""
 
-#: includes/Gateway.php:145
+#: includes/Gateway.php:128
 msgid "Paymos payment error: invalid invoice response."
 msgstr ""
 
-#: includes/Gateway.php:155
+#: includes/Gateway.php:138
 msgid "Awaiting Paymos payment."
 msgstr ""
 
 #. translators: 1: refund amount with currency, 2: refund reason (may be empty)
-#: includes/Gateway.php:197
+#: includes/Gateway.php:180
 #, php-format
 msgid "Paymos refund requested for %1$s. Send the refund on-chain from your Paymos dashboard — WooCommerce did not record an automatic refund. %2$s"
 msgstr ""
 
 #. translators: %s: merchant-provided refund reason
-#: includes/Gateway.php:201
+#: includes/Gateway.php:184
 #, php-format
 msgid "Reason: %s"
 msgstr ""
 
-#: includes/Gateway.php:210
+#: includes/Gateway.php:193
 msgid "Paymos refunds are processed manually on-chain. Open the invoice in your Paymos dashboard and send the refund to the customer. No automatic refund was recorded."
 msgstr ""
 
-#: includes/Gateway.php:292
-#: includes/Gateway.php:341
-#: includes/Gateway.php:342
+#: includes/Gateway.php:278
+#: includes/Gateway.php:279
 msgid "Configured"
 msgstr ""
 
-#: includes/Gateway.php:292
-msgid "Not configured"
-msgstr ""
-
-#: includes/Gateway.php:296
-msgid "API Key"
-msgstr ""
-
-#: includes/Gateway.php:297
-msgid "API Secret"
-msgstr ""
-
+#: includes/Gateway.php:278
+#: includes/Gateway.php:279
 #: includes/Gateway.php:298
-#: includes/Gateway.php:351
-msgid "Project ID"
-msgstr ""
-
-#: includes/Gateway.php:299
-msgid "Webhook Secret"
-msgstr ""
-
-#: includes/Gateway.php:302
-msgid "Enter value"
-msgstr ""
-
-#. translators: %s: masked saved value
-#: includes/Gateway.php:306
-#: includes/Gateway.php:309
-#, php-format
-msgid "Saved: %s — leave blank to keep"
-msgstr ""
-
-#: includes/Gateway.php:311
-msgid "Saved securely — leave blank to keep"
-msgstr ""
-
-#. translators: %s: Sandbox or Live environment label
-#: includes/Gateway.php:325
-#, php-format
-msgid "Delete all saved %s credentials"
-msgstr ""
-
-#: includes/Gateway.php:331
-msgid "Credential storage error:"
-msgstr ""
-
-#: includes/Gateway.php:341
-#: includes/Gateway.php:342
-#: includes/Gateway.php:361
 msgid "Missing"
 msgstr ""
 
-#: includes/Gateway.php:347
+#: includes/Gateway.php:284
 msgid "Active mode"
 msgstr ""
 
-#: includes/Gateway.php:350
+#: includes/Gateway.php:287
 msgid "Active API key"
+msgstr ""
+
+#: includes/Gateway.php:288
+msgid "Project ID"
 msgstr ""
 
 #: includes/OrderMapper.php:28
@@ -340,8 +314,4 @@ msgstr ""
 
 #: includes/StorefrontHooks.php:131
 msgid "Settled on-chain."
-msgstr ""
-
-#: paymos-woocommerce.php:38
-msgid "Paymos configuration error:"
 msgstr ""

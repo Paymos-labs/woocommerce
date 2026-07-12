@@ -15,7 +15,6 @@ msgstr ""
 #. Author of the plugin
 #: paymos-woocommerce.php
 #: includes/Gateway.php:16
-#: assets/js/blocks/paymos-blocks.js:8
 msgid "Paymos"
 msgstr "Paymos"
 
@@ -32,7 +31,6 @@ msgstr "Оплата стейблкоинами"
 #: includes/Blocks.php:55
 #: includes/Gateway.php:29
 #: includes/Gateway.php:52
-#: assets/js/blocks/paymos-blocks.js:9
 msgid "Pay with USDT or USDC across 13 networks — Tron, Ethereum, Polygon, Base, Solana and more. No price volatility, no chargebacks, settlement on-chain in minutes."
 msgstr "Оплата в USDT или USDC в 13 сетях — Tron, Ethereum, Polygon, Base, Solana и других. Без скачков курса, без чарджбэков, расчёт on-chain за минуты."
 
@@ -57,14 +55,12 @@ msgid "Mode"
 msgstr "Режим"
 
 #: includes/Gateway.php:59
-#: includes/Gateway.php:288
-#: includes/Gateway.php:348
+#: includes/Gateway.php:285
 msgid "Sandbox"
 msgstr "Sandbox"
 
 #: includes/Gateway.php:60
-#: includes/Gateway.php:288
-#: includes/Gateway.php:349
+#: includes/Gateway.php:286
 msgid "Live"
 msgstr "Live"
 
@@ -80,64 +76,62 @@ msgstr "Журнал отладки"
 msgid "Write Paymos logs to WooCommerce logs"
 msgstr "Писать логи Paymos в журналы WooCommerce"
 
-#: includes/Gateway.php:109
+#: includes/Gateway.php:92
 msgid "Paymos payment error: order not found."
 msgstr "Ошибка оплаты Paymos: заказ не найден."
 
-#: includes/Gateway.php:133
+#: includes/Gateway.php:116
 msgid "Paymos payment error: unable to create invoice."
 msgstr "Ошибка оплаты Paymos: не удалось создать счёт."
 
-#: includes/Gateway.php:137
+#: includes/Gateway.php:120
 msgid "Paymos payment error: configuration is invalid."
 msgstr "Ошибка оплаты Paymos: неверная конфигурация."
 
-#: includes/Gateway.php:145
+#: includes/Gateway.php:128
 msgid "Paymos payment error: invalid invoice response."
 msgstr "Ошибка оплаты Paymos: некорректный ответ по счёту."
 
-#: includes/Gateway.php:155
+#: includes/Gateway.php:138
 msgid "Awaiting Paymos payment."
 msgstr "Ожидание оплаты через Paymos."
 
 #. translators: 1: refund amount with currency, 2: refund reason (may be empty)
-#: includes/Gateway.php:197
+#: includes/Gateway.php:180
 #, php-format
 msgid "Paymos refund requested for %1$s. Send the refund on-chain from your Paymos dashboard — WooCommerce did not record an automatic refund. %2$s"
 msgstr "Запрошен возврат Paymos на сумму %1$s. Отправьте возврат on-chain из панели Paymos — WooCommerce не зафиксировал автоматический возврат. %2$s"
 
 #. translators: %s: merchant-provided refund reason
-#: includes/Gateway.php:201
+#: includes/Gateway.php:184
 #, php-format
 msgid "Reason: %s"
 msgstr "Причина: %s"
 
-#: includes/Gateway.php:210
+#: includes/Gateway.php:193
 msgid "Paymos refunds are processed manually on-chain. Open the invoice in your Paymos dashboard and send the refund to the customer. No automatic refund was recorded."
 msgstr "Возвраты Paymos выполняются вручную on-chain. Откройте счёт в панели Paymos и отправьте возврат покупателю. Автоматический возврат не зафиксирован."
 
-#: includes/Gateway.php:292
-#: includes/Gateway.php:341
-#: includes/Gateway.php:342
+#: includes/Gateway.php:278
+#: includes/Gateway.php:279
 msgid "Configured"
 msgstr "Настроено"
 
-#: includes/Gateway.php:341
-#: includes/Gateway.php:342
-#: includes/Gateway.php:361
+#: includes/Gateway.php:278
+#: includes/Gateway.php:279
+#: includes/Gateway.php:298
 msgid "Missing"
 msgstr "Отсутствует"
 
-#: includes/Gateway.php:347
+#: includes/Gateway.php:284
 msgid "Active mode"
 msgstr "Активный режим"
 
-#: includes/Gateway.php:350
+#: includes/Gateway.php:287
 msgid "Active API key"
 msgstr "Активный API-ключ"
 
-#: includes/Gateway.php:298
-#: includes/Gateway.php:351
+#: includes/Gateway.php:288
 msgid "Project ID"
 msgstr "ID проекта"
 
@@ -262,34 +256,18 @@ msgstr "Расчёт прошёл on-chain."
 #. Plugin Name of the plugin
 #: paymos-woocommerce.php
 msgid "Paymos for WooCommerce"
-msgstr ""
+msgstr "Paymos для WooCommerce"
 
 #. Plugin URI of the plugin
 #. Author URI of the plugin
 #: paymos-woocommerce.php
 msgid "https://paymos.io"
-msgstr ""
+msgstr "https://paymos.io"
 
 #. Description of the plugin
 #: paymos-woocommerce.php
 msgid "Accept stablecoin payments in WooCommerce through Paymos."
 msgstr "Принимайте оплату стейблкоинами в WooCommerce через Paymos."
-
-#: includes/Gateway.php:62
-msgid "Configure Sandbox and Live credentials below, then switch modes when you are ready."
-msgstr "Настройте ниже ключи Sandbox и Live, затем переключите режим, когда будете готовы."
-
-#: includes/Gateway.php:65
-msgid "Paymos credentials"
-msgstr "Ключи Paymos"
-
-#: includes/Gateway.php:67
-msgid "Credentials are encrypted with this WordPress installation security salts. Saved values are never rendered back into the page."
-msgstr "Ключи зашифрованы с использованием security salts этой установки WordPress. Сохранённые значения никогда не выводятся обратно на страницу."
-
-#: includes/Gateway.php:72
-msgid "Register this URL for both Sandbox and Live projects in Paymos. Dashboard-generated packages register it automatically."
-msgstr "Зарегистрируйте этот URL для проектов Sandbox и Live в Paymos. Пакеты из дашборда регистрируют его автоматически."
 
 #: includes/Gateway.php:75
 msgid "Connection status"
@@ -299,47 +277,39 @@ msgstr "Статус подключения"
 msgid "The active environment must be fully configured before Paymos can process checkout."
 msgstr "Активное окружение должно быть полностью настроено до включения оплаты Paymos."
 
-#: includes/Gateway.php:292
-msgid "Not configured"
-msgstr "Не настроено"
+#: includes/ConnectController.php:44
+msgid "Starting secure connection…"
+msgstr "Запускаем безопасное подключение…"
 
-#: includes/Gateway.php:296
-msgid "API Key"
-msgstr "API-ключ"
+#: includes/ConnectController.php:45
+msgid "Waiting for approval in Paymos…"
+msgstr "Ожидаем подтверждения в Paymos…"
 
-#: includes/Gateway.php:297
-msgid "API Secret"
-msgstr "API-секрет"
+#: includes/ConnectController.php:46
+msgid "Paymos connected. Reloading settings…"
+msgstr "Paymos подключён. Обновляем настройки…"
 
-#: includes/Gateway.php:299
-msgid "Webhook Secret"
-msgstr "Секрет вебхука"
+#: includes/ConnectController.php:47
+msgid "Paymos connection failed."
+msgstr "Не удалось подключить Paymos."
 
-#: includes/Gateway.php:302
-msgid "Enter value"
-msgstr "Введите значение"
+#: includes/ConnectController.php:48
+msgid "Allow pop-ups for this page and try again."
+msgstr "Разрешите всплывающие окна для этой страницы и повторите попытку."
 
-#. translators: %s: masked saved value
-#: includes/Gateway.php:306
-#: includes/Gateway.php:309
-#, php-format
-msgid "Saved: %s — leave blank to keep"
-msgstr "Сохранено: %s — оставьте пустым, чтобы не менять"
+#: includes/Gateway.php:62
+msgid "Connect once, test in Sandbox, then switch to Live when you are ready."
+msgstr "Подключите один раз, проверьте оплату в Sandbox и затем переключитесь на Live."
 
-#: includes/Gateway.php:311
-msgid "Saved securely — leave blank to keep"
-msgstr "Надёжно сохранено — оставьте пустым, чтобы не менять"
+#: includes/Gateway.php:65
+#: includes/Gateway.php:269
+msgid "Connect Paymos"
+msgstr "Подключить Paymos"
 
-#. translators: %s: Sandbox or Live environment label
-#: includes/Gateway.php:325
-#, php-format
-msgid "Delete all saved %s credentials"
-msgstr "Удалить все сохранённые ключи %s"
+#: includes/Gateway.php:67
+msgid "Opens Paymos for approval. Paymos reuses or creates one Payment key per environment and reuses or creates the dedicated webhook for this exact store URL."
+msgstr "Открывает Paymos для подтверждения. Для каждого окружения Paymos использует существующий платёжный ключ или создаёт его, а также использует или создаёт отдельный вебхук для точного URL этого магазина."
 
-#: includes/Gateway.php:331
-msgid "Credential storage error:"
-msgstr "Ошибка хранилища ключей:"
-
-#: paymos-woocommerce.php:38
-msgid "Paymos configuration error:"
-msgstr "Ошибка конфигурации Paymos:"
+#: includes/Gateway.php:72
+msgid "Registered automatically for Sandbox and Live when you connect this store."
+msgstr "Регистрируется автоматически для Sandbox и Live при подключении магазина."

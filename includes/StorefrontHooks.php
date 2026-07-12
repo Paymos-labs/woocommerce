@@ -48,8 +48,8 @@ final class StorefrontHooks
         unset($actions['pay']);
         $actions['paymos_pay'] = array(
             'url' => esc_url($url),
-            'name' => __('Pay invoice', 'paymos-woocommerce'),
-            'aria-label' => __('Pay the Paymos invoice for this order', 'paymos-woocommerce'),
+            'name' => __('Pay invoice', 'paymos-for-woocommerce'),
+            'aria-label' => __('Pay the Paymos invoice for this order', 'paymos-for-woocommerce'),
         );
 
         return $actions;
@@ -62,7 +62,7 @@ final class StorefrontHooks
     public static function plugin_action_links($actions)
     {
         $url = admin_url('admin.php?page=wc-settings&tab=checkout&section=paymos');
-        $link = '<a href="' . esc_url($url) . '">' . esc_html__('Settings', 'paymos-woocommerce') . '</a>';
+        $link = '<a href="' . esc_url($url) . '">' . esc_html__('Settings', 'paymos-for-woocommerce') . '</a>';
         array_unshift($actions, $link);
 
         return $actions;
@@ -86,13 +86,13 @@ final class StorefrontHooks
         $explorer = (string) $order->get_meta('_paymos_explorer_url');
 
         echo '<section class="woocommerce-order-paymos-transaction">';
-        echo '<h2>' . esc_html__('Payment confirmation', 'paymos-woocommerce') . '</h2>';
-        echo '<p>' . esc_html__('Your payment was settled on-chain.', 'paymos-woocommerce') . ' ';
+        echo '<h2>' . esc_html__('Payment confirmation', 'paymos-for-woocommerce') . '</h2>';
+        echo '<p>' . esc_html__('Your payment was settled on-chain.', 'paymos-for-woocommerce') . ' ';
         if ($explorer !== '') {
             echo '<a href="' . esc_url($explorer) . '" target="_blank" rel="noopener noreferrer">'
-                . esc_html__('View transaction', 'paymos-woocommerce') . '</a>.';
+                . esc_html__('View transaction', 'paymos-for-woocommerce') . '</a>.';
         } else {
-            echo esc_html__('Transaction:', 'paymos-woocommerce') . ' <code>' . esc_html($hash) . '</code>';
+            echo esc_html__('Transaction:', 'paymos-for-woocommerce') . ' <code>' . esc_html($hash) . '</code>';
         }
         echo '</p>';
         echo '</section>';
@@ -118,21 +118,21 @@ final class StorefrontHooks
         $explorer = (string) $order->get_meta('_paymos_explorer_url');
 
         if ($plain_text) {
-            echo "\n" . esc_html__('Payment transaction:', 'paymos-woocommerce') . ' ' . $hash . "\n";
+            echo "\n" . esc_html__('Payment transaction:', 'paymos-for-woocommerce') . ' ' . esc_html($hash) . "\n";
             if ($explorer !== '') {
-                echo esc_html__('View on explorer:', 'paymos-woocommerce') . ' ' . $explorer . "\n";
+                echo esc_html__('View on explorer:', 'paymos-for-woocommerce') . ' ' . esc_url($explorer) . "\n";
             }
             return;
         }
 
-        echo '<h2>' . esc_html__('Payment confirmation', 'paymos-woocommerce') . '</h2>';
+        echo '<h2>' . esc_html__('Payment confirmation', 'paymos-for-woocommerce') . '</h2>';
         echo '<p>';
         if ($explorer !== '') {
-            echo esc_html__('Settled on-chain.', 'paymos-woocommerce') . ' '
+            echo esc_html__('Settled on-chain.', 'paymos-for-woocommerce') . ' '
                 . '<a href="' . esc_url($explorer) . '" target="_blank" rel="noopener noreferrer">'
-                . esc_html__('View transaction', 'paymos-woocommerce') . '</a>.';
+                . esc_html__('View transaction', 'paymos-for-woocommerce') . '</a>.';
         } else {
-            echo esc_html__('Transaction:', 'paymos-woocommerce') . ' <code>' . esc_html($hash) . '</code>';
+            echo esc_html__('Transaction:', 'paymos-for-woocommerce') . ' <code>' . esc_html($hash) . '</code>';
         }
         echo '</p>';
     }

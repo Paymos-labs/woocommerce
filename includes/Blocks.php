@@ -14,7 +14,7 @@ final class Blocks extends AbstractPaymentMethodType
     protected $name = 'paymos';
 
     /** @var array<string, mixed> */
-    private $settings = array();
+    protected $settings = array();
 
     public function initialize()
     {
@@ -23,13 +23,15 @@ final class Blocks extends AbstractPaymentMethodType
 
     public function is_active()
     {
-        return isset($this->settings['enabled']) && $this->settings['enabled'] === 'yes';
+        return isset($this->settings['enabled'])
+            && $this->settings['enabled'] === 'yes'
+            && Config::has_environment(Config::mode());
     }
 
     public function get_payment_method_script_handles()
     {
         $asset = PAYMOS_WC_PLUGIN_DIR . 'assets/js/blocks/paymos-blocks.js';
-        $handle = 'paymos-woocommerce-blocks';
+        $handle = 'paymos-for-woocommerce-blocks';
 
         wp_register_script(
             $handle,
@@ -38,6 +40,7 @@ final class Blocks extends AbstractPaymentMethodType
             is_readable($asset) ? (string) filemtime($asset) : PAYMOS_WC_PLUGIN_VERSION,
             true
         );
+        wp_set_script_translations($handle, 'paymos-for-woocommerce');
 
         return array($handle);
     }
@@ -48,8 +51,8 @@ final class Blocks extends AbstractPaymentMethodType
     public function get_payment_method_data()
     {
         return array(
-            'title' => isset($this->settings['title']) ? (string) $this->settings['title'] : __('Pay with stablecoins', 'paymos-woocommerce'),
-            'description' => isset($this->settings['description']) ? (string) $this->settings['description'] : __('Pay with USDT or USDC across 13 networks — Tron, Ethereum, Polygon, Base, Solana and more. No price volatility, no chargebacks, settlement on-chain in minutes.', 'paymos-woocommerce'),
+            'title' => isset($this->settings['title']) ? (string) $this->settings['title'] : __('Pay with stablecoins', 'paymos-for-woocommerce'),
+            'description' => isset($this->settings['description']) ? (string) $this->settings['description'] : __('Pay with USDT or USDC across 13 networks — Tron, Ethereum, Polygon, Base, Solana and more. No price volatility, no chargebacks, settlement on-chain in minutes.', 'paymos-for-woocommerce'),
             'supports' => array('products'),
         );
     }

@@ -4,9 +4,61 @@ declare(strict_types=1);
 
 define('ABSPATH', __DIR__);
 define('PAYMOS_WC_PLUGIN_DIR', dirname(__DIR__) . DIRECTORY_SEPARATOR);
+define('PAYMOS_WC_PLUGIN_FILE', PAYMOS_WC_PLUGIN_DIR . 'paymos-woocommerce.php');
 
 $GLOBALS['paymos_test_options'] = array();
 $GLOBALS['paymos_test_transients'] = array();
+$GLOBALS['paymos_test_admin_errors'] = array();
+$GLOBALS['paymos_test_failed_option_updates'] = array();
+$GLOBALS['paymos_test_remote_handler'] = null;
+
+class WC_Payment_Gateway
+{
+    public $id = '';
+    public $method_title = '';
+    public $method_description = '';
+    public $icon = '';
+    public $has_fields = false;
+    public $supports = array();
+    public $form_fields = array();
+    public $settings = array();
+    public $title = '';
+    public $description = '';
+    public $enabled = 'no';
+
+    public function init_settings()
+    {
+        $this->settings = get_option('woocommerce_' . $this->id . '_settings', array());
+    }
+
+    public function get_option($key, $default = '')
+    {
+        return isset($this->settings[$key]) ? $this->settings[$key] : $default;
+    }
+
+    public function get_field_key($key)
+    {
+        return 'woocommerce_' . $this->id . '_' . $key;
+    }
+
+    public function process_admin_options()
+    {
+        return true;
+    }
+
+    public function is_available()
+    {
+        return $this->enabled === 'yes';
+    }
+}
+
+class WC_Admin_Settings
+{
+    public static function add_error($message)
+    {
+        $GLOBALS['paymos_test_admin_errors'][] = (string) $message;
+    }
+}
 
 spl_autoload_register(static function ($class) {
     $prefix = 'PaymosWooCommerce\\';
@@ -53,6 +105,119 @@ function get_option($key, $default = false)
         : $default;
 }
 
+function esc_html__($text, $domain = null)
+{
+    return (string) $text;
+}
+
+function esc_html($text)
+{
+    return htmlspecialchars((string) $text, ENT_QUOTES, 'UTF-8');
+}
+
+function esc_attr($text)
+{
+    return htmlspecialchars((string) $text, ENT_QUOTES, 'UTF-8');
+}
+
+function apply_filters($hook, $value)
+{
+    return $value;
+}
+
+function plugins_url($path = '', $plugin = '')
+{
+    return 'https://shop.example.com/wp-content/plugins/paymos-woocommerce/' . ltrim((string) $path, '/');
+}
+
+function add_action($hook, $callback, $priority = 10, $acceptedArgs = 1)
+{
+    return true;
+}
+
+function current_user_can($capability)
+{
+    return true;
+}
+
+function wp_unslash($value)
+{
+    return $value;
+}
+
+function sanitize_text_field($value)
+{
+    return trim(strip_tags((string) $value));
+}
+
+function check_admin_referer($action)
+{
+    return true;
+}
+
+function wp_parse_url($url)
+{
+    return parse_url((string) $url);
+}
+
+function wp_delete_file($path)
+{
+    if (is_file($path)) {
+        unlink($path);
+    }
+}
+
+function wp_safe_remote_request($url, array $args)
+{
+    if (is_callable($GLOBALS['paymos_test_remote_handler'])) {
+        return call_user_func($GLOBALS['paymos_test_remote_handler'], $url, $args);
+    }
+
+    return new WP_Error('no_handler', 'No HTTP handler configured.');
+}
+
+function is_wp_error($value)
+{
+    return $value instanceof WP_Error;
+}
+
+function wp_remote_retrieve_response_code($response)
+{
+    return isset($response['response']['code']) ? (int) $response['response']['code'] : 0;
+}
+
+function wp_remote_retrieve_body($response)
+{
+    return isset($response['body']) ? (string) $response['body'] : '';
+}
+
+function wp_remote_retrieve_headers($response)
+{
+    return isset($response['headers']) ? $response['headers'] : array();
+}
+
+class WP_Error
+{
+    public function __construct($code = '', $message = '')
+    {
+    }
+}
+
+function update_option($key, $value, $autoload = null)
+{
+    if (in_array((string) $key, $GLOBALS['paymos_test_failed_option_updates'], true)) {
+        return false;
+    }
+
+    $GLOBALS['paymos_test_options'][(string) $key] = $value;
+    return true;
+}
+
+function wp_salt($scheme = 'auth')
+{
+    return 'paymos-test-wordpress-salt-' . (string) $scheme;
+}
+
 function get_transient($key)
 {
     return array_key_exists((string) $key, $GLOBALS['paymos_test_transients'])
@@ -84,6 +249,7 @@ function add_option($key, $value = '', $deprecated = '', $autoload = 'yes')
 
 function delete_option($key)
 {
+    unset($GLOBALS['paymos_test_options'][(string) $key]);
     unset($GLOBALS['paymos_test_transients'][(string) $key]);
     return true;
 }
@@ -102,29 +268,32 @@ function paymos_reset_test_state()
 {
     $GLOBALS['paymos_test_options'] = array();
     $GLOBALS['paymos_test_transients'] = array();
-    $config = PAYMOS_WC_PLUGIN_DIR . 'paymos-config.php';
-    if (is_file($config)) {
-        unlink($config);
-    }
-
+    $GLOBALS['paymos_test_admin_errors'] = array();
+    $GLOBALS['paymos_test_failed_option_updates'] = array();
+    $GLOBALS['paymos_test_remote_handler'] = null;
+    $_POST = array();
     if (class_exists('PaymosWooCommerce\\Config')) {
-        PaymosWooCommerce\Config::reset_for_tests();
+        PaymosWooCommerce\Config::reset_cache();
     }
 
-    if (class_exists('PaymosWooCommerce\\WebhookController') && method_exists('PaymosWooCommerce\\WebhookController', 'set_client_factory_for_tests')) {
-        PaymosWooCommerce\WebhookController::set_client_factory_for_tests(null);
+    if (class_exists('PaymosWooCommerce\\WebhookController')) {
+        paymos_set_webhook_client_factory(null);
     }
 
     unset($GLOBALS['paymos_test_wc_orders']);
 }
 
-function paymos_write_generated_config($php)
+function paymos_store_credentials(array $environments)
 {
-    file_put_contents(PAYMOS_WC_PLUGIN_DIR . 'paymos-config.php', "<?php\n\nreturn " . $php . ";\n");
+    PaymosWooCommerce\CredentialStore::save($environments);
+    PaymosWooCommerce\Config::reset_cache();
+}
 
-    if (class_exists('PaymosWooCommerce\\Config')) {
-        PaymosWooCommerce\Config::reset_for_tests();
-    }
+function paymos_set_webhook_client_factory($factory)
+{
+    $property = new ReflectionProperty(PaymosWooCommerce\WebhookController::class, 'clientFactory');
+    $property->setAccessible(true);
+    $property->setValue(null, $factory);
 }
 
 function assertSameValue($expected, $actual, $message)

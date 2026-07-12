@@ -1,111 +1,47 @@
 === Paymos for WooCommerce ===
 Contributors: paymos
-Tags: woocommerce, payments, crypto, paymos, checkout-blocks
-Requires at least: 5.9
+Tags: payments, stablecoin, usdt, usdc, crypto, woocommerce
+Requires at least: 6.2
 Tested up to: 7.0
 Requires PHP: 7.4
-Requires Plugins: woocommerce
-WC requires at least: 8.0
-WC tested up to: 10.8
-Stable tag: 1.0.0
-License: GPL-2.0-or-later
+Stable tag: 1.0.2
+License: GPLv2 or later
+License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
-Accept USDT and USDC at WooCommerce checkout — native stablecoin settlement, no chargebacks.
+Accept stablecoin payments with Paymos hosted checkout and signed webhooks.
 
 == Description ==
 
-Paymos for WooCommerce creates a Paymos invoice during checkout and redirects
-the customer to the hosted Paymos payment page.
+Paymos for WooCommerce supports Sandbox and Live payments, HMAC-signed Merchant API requests, authenticated webhooks, event deduplication, reconciliation, HPOS, and Checkout Blocks.
 
-The plugin supports:
-
-* Classic WooCommerce checkout.
-* WooCommerce Checkout Blocks.
-* WooCommerce High-Performance Order Storage (HPOS).
-* One dashboard-generated ZIP archive with embedded sandbox and live Paymos credentials.
-* Signed Paymos webhooks with timestamp validation and event_id deduplication.
-* Reverse API verification for terminal invoice webhooks before changing order state.
-* Automatic 10-minute reconciliation for missed webhooks.
-* Amount-change protection before marking WooCommerce orders paid.
-* Paymos payment details on the WooCommerce order admin page.
-
-== Requirements ==
-
-* WordPress 5.9 or newer.
-* WooCommerce 8.0 or newer.
-* PHP 7.4 or newer.
-* A Paymos project.
-
-No Composer install is required on the WordPress server. The generated archive ships with the Paymos PHP SDK bundled.
+The official package contains no merchant secrets. Connect it from WooCommerce settings using the one-time Paymos device approval flow. Credentials are encrypted with AES-256-GCM using WordPress installation security salts and are never rendered back into the settings page.
 
 == Installation ==
 
-1. In Paymos Dashboard, open CMS and select WooCommerce.
-2. Make sure the project that should receive WooCommerce invoices is selected, then enter the public HTTPS store URL.
-3. Click Download plugin to fetch the generated ZIP.
-4. Upload the generated ZIP through WordPress Plugins.
-5. Activate the plugin.
-6. Open WooCommerce -> Settings -> Payments -> Paymos.
-7. Enable Paymos payments and choose Sandbox or Live mode.
+1. Install the official plugin package and activate it.
+2. Open WooCommerce -> Settings -> Payments -> Paymos.
+3. Click Connect Paymos and approve the current project in the Paymos dashboard.
+4. Select Sandbox or Live mode and enable the payment method.
 
-Dashboard-generated plugin archives include `paymos-config.php`, so merchants
-do not paste API keys, API secrets, project IDs, webhook secrets, or base URLs
-manually.
+== Frequently Asked Questions ==
 
-The Paymos API host defaults to `https://api.paymos.io`. It is not a merchant
-setting. Paymos may override it in generated archives for sandbox, staging, or
-internal builds.
+= Does the plugin ZIP contain my API secrets? =
 
-== Webhook URL ==
+No. Official release packages are identical for every merchant and contain no merchant credentials.
 
-The plugin receives Paymos webhooks at:
+= Where are credentials stored? =
 
-`/wp-json/paymos/v1/webhook`
+In a non-autoloaded WordPress option encrypted with AES-256-GCM. Key material is derived from this WordPress installation's security salts.
 
-The exact full URL is shown in WooCommerce -> Settings -> Payments -> Paymos.
-Dashboard-generated ZIPs use the store URL to register sandbox and live
-project-scoped invoice webhooks in Paymos automatically.
+= Which project is connected? =
 
-== Security ==
+The project currently selected in Paymos when you approve the connection. There is no second project selector.
 
-Webhook requests must include `X-Webhook-Signature`.
+= Does OAuth replace Merchant API HMAC authentication? =
 
-The Paymos PHP SDK verifies the signature as HMAC-SHA256 over:
+No. OAuth device authorization is only a one-time credential delivery channel. Runtime Merchant API calls remain HMAC signed.
 
-`timestamp.raw_body`
+== Changelog ==
 
-The plugin tries the sandbox and live webhook secrets from `paymos-config.php`.
-The secret that verifies the signature determines the authenticated environment.
-The plugin rejects invalid signatures, stale timestamps, duplicate committed
-`event_id` values, project mismatches, and environment mismatches before
-changing any WooCommerce order.
-
-For terminal invoice statuses (`paid`, `paid_over`, `underpaid`, `expired`,
-and `cancelled`), the plugin also calls the Paymos API to fetch the current
-invoice state before changing the WooCommerce order. The event is committed to
-the dedup store only after the order update succeeds, so a failed processing
-attempt can still be retried by Paymos.
-
-== Reconciliation ==
-
-The plugin schedules a WordPress cron task every 10 minutes. It scans unpaid
-Paymos orders, fetches the current invoice status from Paymos, and applies the
-same status mapping as the webhook handler.
-
-This recovers orders when a webhook delivery was missed because the store was
-temporarily unavailable, blocked by infrastructure, or failed during processing.
-
-== Amount Protection ==
-
-When the plugin creates a Paymos invoice, it stores the WooCommerce order total
-and currency as a snapshot. If a paid webhook arrives after the WooCommerce
-order amount or currency changed, the plugin keeps the order on hold and adds a
-manual review note instead of calling `payment_complete`.
-
-This prevents an old invoice, for example 100.00 USD, from completing an order
-that was later changed to 120.00 USD.
-
-== Logs ==
-
-Enable Debug logging in the Paymos payment method settings to write Paymos
-entries into WooCommerce logs. API keys and secrets are redacted.
+= 1.0.0 =
+* Initial official release.

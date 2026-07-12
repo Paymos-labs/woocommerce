@@ -70,28 +70,26 @@ final class FakeRestRequest extends WP_REST_Request
     }
 }
 
-function wc_get_orders(array $args)
+function wc_get_order($orderId)
 {
-    return isset($GLOBALS['paymos_test_wc_orders']) ? $GLOBALS['paymos_test_wc_orders'] : array();
+    if (!isset($GLOBALS['paymos_test_wc_orders']) || count($GLOBALS['paymos_test_wc_orders']) === 0) {
+        return false;
+    }
+
+    return $GLOBALS['paymos_test_wc_orders'][0];
 }
 
 function test_webhook_controller_rejects_paid_event_when_reverse_api_status_differs()
 {
-    if (!method_exists(WebhookController::class, 'set_client_factory_for_tests')) {
-        throw new RuntimeException('WebhookController must expose a test client factory so terminal webhooks can be reverse-verified.');
-    }
-
-    paymos_write_generated_config("array(
-        'environments' => array(
-            'sandbox' => array(
-                'api_key' => 'pk_test_key',
-                'api_secret' => 'sk_test_secret',
-                'project_id' => 'prj_123',
-                'webhook_secret' => 'whsec_test',
-                'base_url' => 'https://api.paymos.test',
-            ),
+    paymos_store_credentials(array(
+        'sandbox' => array(
+            'api_key' => 'pk_test_key',
+            'api_secret' => 'sk_test_secret',
+            'project_id' => 'prj_123',
+            'webhook_secret' => 'whsec_test',
+            'base_url' => 'https://api.paymos.io',
         ),
-    )");
+    ));
 
     $order = new FakeOrder('100.00', 'USD');
     $order->update_meta_data('_paymos_external_order_id', 'wc_100');
@@ -116,7 +114,7 @@ function test_webhook_controller_rejects_paid_event_when_reverse_api_status_diff
     $client = new Client(new ClientConfig('pk_test_key', 'sk_test_secret', 'https://api.paymos.test'), $transport, static function () {
         return 1709000000;
     });
-    WebhookController::set_client_factory_for_tests(static function () use ($client) {
+    paymos_set_webhook_client_factory(static function () use ($client) {
         return $client;
     });
 
@@ -124,6 +122,7 @@ function test_webhook_controller_rejects_paid_event_when_reverse_api_status_diff
     $body = json_encode(array(
         'event_id' => 'evt_reverse_mismatch',
         'event_type' => 'invoice.paid',
+        'version' => 1,
         'occurred_at' => $timestamp,
         'data' => array(
             'invoice_id' => 'inv_123',
@@ -145,24 +144,22 @@ function test_webhook_controller_rejects_paid_event_when_reverse_api_status_diff
     assertSameValue(400, $response->get_status(), 'reverse verification mismatch must reject terminal paid webhook.');
     assertSameValue(false, $order->paid, 'reverse verification mismatch must not complete Woo order.');
 
-    WebhookController::set_client_factory_for_tests(null);
+    paymos_set_webhook_client_factory(null);
     unset($GLOBALS['paymos_test_wc_orders']);
 }
 
 function test_webhook_controller_reverse_verifies_paid_event_before_completing_order()
 {
     paymos_reset_test_state();
-    paymos_write_generated_config("array(
-        'environments' => array(
-            'sandbox' => array(
-                'api_key' => 'pk_test_key',
-                'api_secret' => 'sk_test_secret',
-                'project_id' => 'prj_123',
-                'webhook_secret' => 'whsec_test',
-                'base_url' => 'https://api.paymos.test',
-            ),
+    paymos_store_credentials(array(
+        'sandbox' => array(
+            'api_key' => 'pk_test_key',
+            'api_secret' => 'sk_test_secret',
+            'project_id' => 'prj_123',
+            'webhook_secret' => 'whsec_test',
+            'base_url' => 'https://api.paymos.io',
         ),
-    )");
+    ));
 
     $order = new FakeOrder('100.00', 'USD');
     $order->update_meta_data('_paymos_external_order_id', 'wc_100');
@@ -183,7 +180,7 @@ function test_webhook_controller_reverse_verifies_paid_event_before_completing_o
     $client = new Client(new ClientConfig('pk_test_key', 'sk_test_secret', 'https://api.paymos.test'), $transport, static function () {
         return 1709000000;
     });
-    WebhookController::set_client_factory_for_tests(static function () use ($client) {
+    paymos_set_webhook_client_factory(static function () use ($client) {
         return $client;
     });
 
@@ -191,6 +188,7 @@ function test_webhook_controller_reverse_verifies_paid_event_before_completing_o
     $body = json_encode(array(
         'event_id' => 'evt_reverse_ok',
         'event_type' => 'invoice.paid',
+        'version' => 1,
         'occurred_at' => $timestamp,
         'data' => array(
             'invoice_id' => 'inv_123',
@@ -209,24 +207,22 @@ function test_webhook_controller_reverse_verifies_paid_event_before_completing_o
     assertSameValue(true, $order->paid, 'matching reverse verification must complete Woo order.');
     assertSameValue(1, count($transport->requests()), 'terminal paid webhook must fetch Paymos invoice before completing order.');
 
-    WebhookController::set_client_factory_for_tests(null);
+    paymos_set_webhook_client_factory(null);
     unset($GLOBALS['paymos_test_wc_orders']);
 }
 
 function test_webhook_controller_does_not_commit_event_id_when_processing_fails()
 {
     paymos_reset_test_state();
-    paymos_write_generated_config("array(
-        'environments' => array(
-            'sandbox' => array(
-                'api_key' => 'pk_test_key',
-                'api_secret' => 'sk_test_secret',
-                'project_id' => 'prj_123',
-                'webhook_secret' => 'whsec_test',
-                'base_url' => 'https://api.paymos.test',
-            ),
+    paymos_store_credentials(array(
+        'sandbox' => array(
+            'api_key' => 'pk_test_key',
+            'api_secret' => 'sk_test_secret',
+            'project_id' => 'prj_123',
+            'webhook_secret' => 'whsec_test',
+            'base_url' => 'https://api.paymos.io',
         ),
-    )");
+    ));
 
     $order = new FakeOrder('100.00', 'USD');
     $order->update_meta_data('_paymos_external_order_id', 'wc_100');
@@ -240,6 +236,7 @@ function test_webhook_controller_does_not_commit_event_id_when_processing_fails(
     $body = json_encode(array(
         'event_id' => 'evt_retry_after_failure',
         'event_type' => 'invoice.paid',
+        'version' => 1,
         'occurred_at' => $timestamp,
         'data' => array(
             'invoice_id' => 'inv_123',
@@ -259,7 +256,7 @@ function test_webhook_controller_does_not_commit_event_id_when_processing_fails(
             'order' => array('external_id' => 'wc_100', 'amount' => '100.00', 'currency' => 'USD'),
         )), array()),
     ));
-    WebhookController::set_client_factory_for_tests(static function () use ($badTransport) {
+    paymos_set_webhook_client_factory(static function () use ($badTransport) {
         return new Client(new ClientConfig('pk_test_key', 'sk_test_secret', 'https://api.paymos.test'), $badTransport);
     });
 
@@ -274,7 +271,7 @@ function test_webhook_controller_does_not_commit_event_id_when_processing_fails(
             'order' => array('external_id' => 'wc_100', 'amount' => '100.00', 'currency' => 'USD'),
         )), array()),
     ));
-    WebhookController::set_client_factory_for_tests(static function () use ($goodTransport) {
+    paymos_set_webhook_client_factory(static function () use ($goodTransport) {
         return new Client(new ClientConfig('pk_test_key', 'sk_test_secret', 'https://api.paymos.test'), $goodTransport);
     });
 
@@ -283,6 +280,6 @@ function test_webhook_controller_does_not_commit_event_id_when_processing_fails(
     assertSameValue(200, $second->get_status(), 'retry after failed processing must not be treated as duplicate.');
     assertSameValue(true, $order->paid, 'retry after failed processing must complete the order once API confirms paid.');
 
-    WebhookController::set_client_factory_for_tests(null);
+    paymos_set_webhook_client_factory(null);
     unset($GLOBALS['paymos_test_wc_orders']);
 }

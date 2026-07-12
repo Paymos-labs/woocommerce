@@ -25,7 +25,7 @@ final class OrderMapper
 
         $action = StatusMapper::invoiceAction($eventType, $status);
         if ($order->is_paid() && $this->wouldRollBackPaidOrder($action)) {
-            $order->add_order_note(__('Paymos ignored a stale invoice status after payment completed.', 'paymos-woocommerce'));
+            $order->add_order_note(__('Paymos ignored a stale invoice status after payment completed.', 'paymos-for-woocommerce'));
             $this->save($order);
             return;
         }
@@ -34,15 +34,15 @@ final class OrderMapper
             case StatusMapper::ACTION_CONFIRMING:
             case StatusMapper::ACTION_AWAITING_PAYMENT:
                 if (!$order->is_paid()) {
-                    $order->update_status('on-hold', __('Paymos payment is confirming.', 'paymos-woocommerce'));
-                    $order->add_order_note(__('Paymos payment is confirming.', 'paymos-woocommerce'));
+                    $order->update_status('on-hold', __('Paymos payment is confirming.', 'paymos-for-woocommerce'));
+                    $order->add_order_note(__('Paymos payment is confirming.', 'paymos-for-woocommerce'));
                 }
                 break;
 
             case StatusMapper::ACTION_PAYMENT_COMPLETE:
                 if (!OrderAmountGuard::isSafeToComplete($order, $event)) {
                     $order->update_meta_data('_paymos_amount_mismatch', 'yes');
-                    $order->update_status('on-hold', __('Paymos payment amount needs manual review.', 'paymos-woocommerce'));
+                    $order->update_status('on-hold', __('Paymos payment amount needs manual review.', 'paymos-for-woocommerce'));
                     $order->add_order_note(OrderAmountGuard::mismatchNote($order, $event));
                     $this->save($order);
                     break;
@@ -57,17 +57,17 @@ final class OrderMapper
                     $order->update_meta_data('_paymos_explorer_url', $transfer['explorer_url']);
                 }
                 $order->payment_complete($transfer['tx_hash'] !== '' ? $transfer['tx_hash'] : $this->fallbackTransactionId($event));
-                $order->add_order_note(__('Paymos payment completed.', 'paymos-woocommerce'));
+                $order->add_order_note(__('Paymos payment completed.', 'paymos-for-woocommerce'));
                 break;
 
             case StatusMapper::ACTION_FAIL_ORDER:
-                $order->update_status('failed', __('Paymos invoice was underpaid.', 'paymos-woocommerce'));
-                $order->add_order_note(__('Paymos invoice was underpaid.', 'paymos-woocommerce'));
+                $order->update_status('failed', __('Paymos invoice was underpaid.', 'paymos-for-woocommerce'));
+                $order->add_order_note(__('Paymos invoice was underpaid.', 'paymos-for-woocommerce'));
                 break;
 
             case StatusMapper::ACTION_CANCEL_ORDER:
-                $order->update_status('cancelled', __('Paymos invoice was cancelled.', 'paymos-woocommerce'));
-                $order->add_order_note(__('Paymos invoice was cancelled.', 'paymos-woocommerce'));
+                $order->update_status('cancelled', __('Paymos invoice was cancelled.', 'paymos-for-woocommerce'));
+                $order->add_order_note(__('Paymos invoice was cancelled.', 'paymos-for-woocommerce'));
                 break;
         }
 

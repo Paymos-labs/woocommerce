@@ -1,0 +1,347 @@
+# Copyright (C) 2026 Paymos
+# This file is distributed under the GPL-2.0-or-later.
+msgid ""
+msgstr ""
+"Project-Id-Version: Paymos for WooCommerce 1.0.0\n"
+"Report-Msgid-Bugs-To: https://wordpress.org/support/plugin/paymos-for-woocommerce\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"POT-Creation-Date: 2026-07-11T04:18:03+00:00\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"X-Generator: WP-CLI 2.12.0\n"
+"X-Domain: paymos-for-woocommerce\n"
+
+#. Plugin Name of the plugin
+#: paymos-woocommerce.php
+msgid "Paymos for WooCommerce"
+msgstr ""
+
+#. Plugin URI of the plugin
+#. Author URI of the plugin
+#: paymos-woocommerce.php
+msgid "https://paymos.io"
+msgstr ""
+
+#. Description of the plugin
+#: paymos-woocommerce.php
+msgid "Accept stablecoin payments in WooCommerce through Paymos."
+msgstr ""
+
+#. Author of the plugin
+#: paymos-woocommerce.php
+#: includes/Gateway.php:16
+#: assets/js/blocks/paymos-blocks.js:8
+msgid "Paymos"
+msgstr ""
+
+#: includes/AdminOrderMetaBox.php:22
+msgid "Paymos Payment"
+msgstr ""
+
+#: includes/AdminOrderMetaBox.php:35
+msgid "Paymos order data is not available."
+msgstr ""
+
+#: includes/AdminOrderMetaBox.php:40
+msgid "Invoice ID"
+msgstr ""
+
+#: includes/AdminOrderMetaBox.php:41
+msgid "External order ID"
+msgstr ""
+
+#: includes/AdminOrderMetaBox.php:42
+msgid "Amount snapshot"
+msgstr ""
+
+#: includes/AdminOrderMetaBox.php:43
+msgid "Last event"
+msgstr ""
+
+#: includes/AdminOrderMetaBox.php:44
+msgid "Last event ID"
+msgstr ""
+
+#: includes/AdminOrderMetaBox.php:45
+msgid "Last event at"
+msgstr ""
+
+#: includes/AdminOrderMetaBox.php:46
+msgid "Last status"
+msgstr ""
+
+#: includes/AdminOrderMetaBox.php:47
+msgid "Amount mismatch"
+msgstr ""
+
+#: includes/AdminOrderMetaBox.php:62
+msgid "Open Paymos checkout"
+msgstr ""
+
+#: includes/Blocks.php:54
+#: includes/Gateway.php:28
+#: includes/Gateway.php:47
+msgid "Pay with stablecoins"
+msgstr ""
+
+#: includes/Blocks.php:55
+#: includes/Gateway.php:29
+#: includes/Gateway.php:52
+#: assets/js/blocks/paymos-blocks.js:9
+msgid "Pay with USDT or USDC across 13 networks — Tron, Ethereum, Polygon, Base, Solana and more. No price volatility, no chargebacks, settlement on-chain in minutes."
+msgstr ""
+
+#: includes/Gateway.php:17
+msgid "Accept USDT and USDC at checkout. Settled on-chain in the same stablecoin, no chargebacks."
+msgstr ""
+
+#: includes/Gateway.php:39
+msgid "Enable/Disable"
+msgstr ""
+
+#: includes/Gateway.php:41
+msgid "Enable Paymos payments"
+msgstr ""
+
+#: includes/Gateway.php:45
+msgid "Title"
+msgstr ""
+
+#: includes/Gateway.php:50
+msgid "Description"
+msgstr ""
+
+#: includes/Gateway.php:55
+msgid "Mode"
+msgstr ""
+
+#: includes/Gateway.php:59
+#: includes/Gateway.php:288
+#: includes/Gateway.php:348
+msgid "Sandbox"
+msgstr ""
+
+#: includes/Gateway.php:60
+#: includes/Gateway.php:288
+#: includes/Gateway.php:349
+msgid "Live"
+msgstr ""
+
+#: includes/Gateway.php:62
+msgid "Configure Sandbox and Live credentials below, then switch modes when you are ready."
+msgstr ""
+
+#: includes/Gateway.php:65
+msgid "Paymos credentials"
+msgstr ""
+
+#: includes/Gateway.php:67
+msgid "Credentials are encrypted with this WordPress installation security salts. Saved values are never rendered back into the page."
+msgstr ""
+
+#: includes/Gateway.php:70
+msgid "Webhook URL"
+msgstr ""
+
+#: includes/Gateway.php:72
+msgid "Register this URL for both Sandbox and Live projects in Paymos. Dashboard-generated packages register it automatically."
+msgstr ""
+
+#: includes/Gateway.php:75
+msgid "Connection status"
+msgstr ""
+
+#: includes/Gateway.php:77
+msgid "The active environment must be fully configured before Paymos can process checkout."
+msgstr ""
+
+#: includes/Gateway.php:80
+msgid "Debug logging"
+msgstr ""
+
+#: includes/Gateway.php:82
+msgid "Write Paymos logs to WooCommerce logs"
+msgstr ""
+
+#: includes/Gateway.php:109
+msgid "Paymos payment error: order not found."
+msgstr ""
+
+#: includes/Gateway.php:133
+msgid "Paymos payment error: unable to create invoice."
+msgstr ""
+
+#: includes/Gateway.php:137
+msgid "Paymos payment error: configuration is invalid."
+msgstr ""
+
+#: includes/Gateway.php:145
+msgid "Paymos payment error: invalid invoice response."
+msgstr ""
+
+#: includes/Gateway.php:155
+msgid "Awaiting Paymos payment."
+msgstr ""
+
+#. translators: 1: refund amount with currency, 2: refund reason (may be empty)
+#: includes/Gateway.php:197
+#, php-format
+msgid "Paymos refund requested for %1$s. Send the refund on-chain from your Paymos dashboard — WooCommerce did not record an automatic refund. %2$s"
+msgstr ""
+
+#. translators: %s: merchant-provided refund reason
+#: includes/Gateway.php:201
+#, php-format
+msgid "Reason: %s"
+msgstr ""
+
+#: includes/Gateway.php:210
+msgid "Paymos refunds are processed manually on-chain. Open the invoice in your Paymos dashboard and send the refund to the customer. No automatic refund was recorded."
+msgstr ""
+
+#: includes/Gateway.php:292
+#: includes/Gateway.php:341
+#: includes/Gateway.php:342
+msgid "Configured"
+msgstr ""
+
+#: includes/Gateway.php:292
+msgid "Not configured"
+msgstr ""
+
+#: includes/Gateway.php:296
+msgid "API Key"
+msgstr ""
+
+#: includes/Gateway.php:297
+msgid "API Secret"
+msgstr ""
+
+#: includes/Gateway.php:298
+#: includes/Gateway.php:351
+msgid "Project ID"
+msgstr ""
+
+#: includes/Gateway.php:299
+msgid "Webhook Secret"
+msgstr ""
+
+#: includes/Gateway.php:302
+msgid "Enter value"
+msgstr ""
+
+#. translators: %s: masked saved value
+#: includes/Gateway.php:306
+#: includes/Gateway.php:309
+#, php-format
+msgid "Saved: %s — leave blank to keep"
+msgstr ""
+
+#: includes/Gateway.php:311
+msgid "Saved securely — leave blank to keep"
+msgstr ""
+
+#. translators: %s: Sandbox or Live environment label
+#: includes/Gateway.php:325
+#, php-format
+msgid "Delete all saved %s credentials"
+msgstr ""
+
+#: includes/Gateway.php:331
+msgid "Credential storage error:"
+msgstr ""
+
+#: includes/Gateway.php:341
+#: includes/Gateway.php:342
+#: includes/Gateway.php:361
+msgid "Missing"
+msgstr ""
+
+#: includes/Gateway.php:347
+msgid "Active mode"
+msgstr ""
+
+#: includes/Gateway.php:350
+msgid "Active API key"
+msgstr ""
+
+#: includes/OrderMapper.php:28
+msgid "Paymos ignored a stale invoice status after payment completed."
+msgstr ""
+
+#: includes/OrderMapper.php:37
+#: includes/OrderMapper.php:38
+msgid "Paymos payment is confirming."
+msgstr ""
+
+#: includes/OrderMapper.php:45
+msgid "Paymos payment amount needs manual review."
+msgstr ""
+
+#: includes/OrderMapper.php:60
+msgid "Paymos payment completed."
+msgstr ""
+
+#: includes/OrderMapper.php:64
+#: includes/OrderMapper.php:65
+msgid "Paymos invoice was underpaid."
+msgstr ""
+
+#: includes/OrderMapper.php:69
+#: includes/OrderMapper.php:70
+msgid "Paymos invoice was cancelled."
+msgstr ""
+
+#: includes/Reconciler.php:24
+msgid "Every 10 minutes"
+msgstr ""
+
+#: includes/StorefrontHooks.php:51
+msgid "Pay invoice"
+msgstr ""
+
+#: includes/StorefrontHooks.php:52
+msgid "Pay the Paymos invoice for this order"
+msgstr ""
+
+#: includes/StorefrontHooks.php:65
+msgid "Settings"
+msgstr ""
+
+#: includes/StorefrontHooks.php:89
+#: includes/StorefrontHooks.php:128
+msgid "Payment confirmation"
+msgstr ""
+
+#: includes/StorefrontHooks.php:90
+msgid "Your payment was settled on-chain."
+msgstr ""
+
+#: includes/StorefrontHooks.php:93
+#: includes/StorefrontHooks.php:133
+msgid "View transaction"
+msgstr ""
+
+#: includes/StorefrontHooks.php:95
+#: includes/StorefrontHooks.php:135
+msgid "Transaction:"
+msgstr ""
+
+#: includes/StorefrontHooks.php:121
+msgid "Payment transaction:"
+msgstr ""
+
+#: includes/StorefrontHooks.php:123
+msgid "View on explorer:"
+msgstr ""
+
+#: includes/StorefrontHooks.php:131
+msgid "Settled on-chain."
+msgstr ""
+
+#: paymos-woocommerce.php:38
+msgid "Paymos configuration error:"
+msgstr ""

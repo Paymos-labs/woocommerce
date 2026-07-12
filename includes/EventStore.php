@@ -35,6 +35,7 @@ final class EventStore implements EventStoreInterface
             : '';
         $table = self::tableName();
 
+        // phpcs:disable WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- A dedicated table and trusted wpdb prefix are required for atomic webhook deduplication.
         $created = $wpdb->query(
             "CREATE TABLE IF NOT EXISTS {$table} (
                 event_hash varchar(32) NOT NULL,
@@ -47,6 +48,7 @@ final class EventStore implements EventStoreInterface
                 KEY expires_at (expires_at)
             ) {$charsetCollate};"
         );
+        // phpcs:enable WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter
 
         self::$tableReady = $created !== false;
     }
@@ -137,6 +139,7 @@ final class EventStore implements EventStoreInterface
         $now = time();
         $lockExpiresAt = $now + 300;
 
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery -- Atomic insert is the cross-request webhook lock.
         $inserted = $wpdb->insert(
             self::tableName(),
             array(
@@ -157,8 +160,10 @@ final class EventStore implements EventStoreInterface
             return true;
         }
 
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Lock state must be read directly and cannot be cached.
         $row = $wpdb->get_row($wpdb->prepare(
-            'SELECT status, expires_at FROM ' . self::tableName() . ' WHERE event_hash = %s',
+            'SELECT status, expires_at FROM %i WHERE event_hash = %s',
+            self::tableName(),
             $hash
         ), ARRAY_A);
 
@@ -168,6 +173,7 @@ final class EventStore implements EventStoreInterface
 
         $expiresAt = isset($row['expires_at']) ? (int) $row['expires_at'] : 0;
         if ($expiresAt > 0 && $expiresAt <= $now) {
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Expired lock removal must be immediately visible.
             $wpdb->delete(self::tableName(), array('event_hash' => $hash), array('%s'));
             return $this->rememberInDatabase($eventId, $ttlSeconds);
         }
@@ -187,6 +193,7 @@ final class EventStore implements EventStoreInterface
         }
 
         $now = time();
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Atomic status transition commits the deduplication record.
         $wpdb->update(
             self::tableName(),
             array(
@@ -212,6 +219,7 @@ final class EventStore implements EventStoreInterface
 
         $hash = $this->pendingHash;
         if ($hash !== '' && self::canUseDatabase()) {
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Failed webhook locks must be released immediately.
             $wpdb->delete(
                 self::tableName(),
                 array('event_hash' => $hash, 'status' => 'processing'),

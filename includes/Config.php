@@ -9,44 +9,45 @@ defined('ABSPATH') || exit;
 final class Config
 {
     public const OPTION_KEY = 'woocommerce_paymos_settings';
-    public const DEFAULT_BASE_URL = 'https://api.paymos.io';
+    public const DEFAULT_BASE_URL = CredentialValidator::DEFAULT_BASE_URL;
 
-    /** @var array<string, mixed>|null */
-    private static $generated;
+    /** @var array<string, array<string, string>>|null */
+    private static $credentials;
+
+    /** @var string */
+    private static $credentialError = '';
 
     /**
+     * Presentation settings only. Secrets are deliberately excluded so they
+     * can never leak into Checkout Blocks payment-method data.
+     *
      * @return array<string, mixed>
      */
     public static function all()
     {
-        return array_merge(self::settings(), self::generated());
+        return self::settings();
     }
 
     public static function get($key, $default = '')
     {
-        $config = self::environment_config();
-        if (!array_key_exists($key, $config)) {
-            $config = self::all();
+        $settings = self::settings();
+        if (array_key_exists($key, $settings)) {
+            return $settings[$key];
         }
 
+        $config = self::environment_config();
         return array_key_exists($key, $config) ? $config[$key] : $default;
     }
 
     public static function mode()
     {
         $settings = self::settings();
-        $mode = isset($settings['mode']) ? (string) $settings['mode'] : '';
-
-        if ($mode === '' && isset($settings['environment'])) {
-            $mode = (string) $settings['environment'];
-        }
-
-        $mode = strtolower(trim($mode));
+        $mode = isset($settings['mode']) ? strtolower(trim((string) $settings['mode'])) : '';
         return in_array($mode, array('sandbox', 'live'), true) ? $mode : 'sandbox';
     }
 
     /**
-     * @return array<string, mixed>
+     * @return array<string, string>
      */
     public static function environment_config($environment = null)
     {
@@ -55,31 +56,10 @@ final class Config
             return array();
         }
 
-        $generated = self::generated();
-        if (isset($generated['environments']) && is_array($generated['environments'])) {
-            $configs = $generated['environments'];
-            if (isset($configs[$environment]) && is_array($configs[$environment])) {
-                return self::with_defaults($configs[$environment]);
-            }
-
-            return array();
-        }
-
-        $flat = array_merge(self::settings(), $generated);
-        if (count($flat) === 0) {
-            return array();
-        }
-
-        $flatEnvironment = isset($flat['environment']) ? strtolower(trim((string) $flat['environment'])) : 'live';
-        if (!in_array($flatEnvironment, array('sandbox', 'live'), true)) {
-            $flatEnvironment = 'live';
-        }
-
-        if ($flatEnvironment !== $environment) {
-            return array();
-        }
-
-        return self::with_defaults($flat);
+        $credentials = self::credentials();
+        return isset($credentials[$environment]) && is_array($credentials[$environment])
+            ? $credentials[$environment]
+            : array();
     }
 
     public static function has_environment($environment)
@@ -93,11 +73,10 @@ final class Config
     public static function webhook_secrets()
     {
         $secrets = array();
-
         foreach (array('sandbox', 'live') as $environment) {
             $config = self::environment_config($environment);
-            if (isset($config['webhook_secret']) && is_scalar($config['webhook_secret']) && trim((string) $config['webhook_secret']) !== '') {
-                $secrets[$environment] = (string) $config['webhook_secret'];
+            if (isset($config['webhook_secret']) && $config['webhook_secret'] !== '') {
+                $secrets[$environment] = $config['webhook_secret'];
             }
         }
 
@@ -107,16 +86,21 @@ final class Config
     public static function masked_api_key($environment = null)
     {
         $config = self::environment_config($environment);
-        $key = isset($config['api_key']) && is_scalar($config['api_key']) ? (string) $config['api_key'] : '';
-        if ($key === '') {
-            return '';
-        }
+        $key = isset($config['api_key']) ? (string) $config['api_key'] : '';
+        return self::mask($key);
+    }
 
-        if (strlen($key) <= 12) {
-            return str_repeat('*', strlen($key));
-        }
+    public static function masked_project_id($environment = null)
+    {
+        $config = self::environment_config($environment);
+        $projectId = isset($config['project_id']) ? (string) $config['project_id'] : '';
+        return self::mask($projectId);
+    }
 
-        return substr($key, 0, 8) . '...' . substr($key, -4);
+    public static function credential_error()
+    {
+        self::credentials();
+        return self::$credentialError;
     }
 
     public static function webhook_url()
@@ -124,9 +108,10 @@ final class Config
         return rest_url('paymos/v1/webhook');
     }
 
-    public static function reset_for_tests()
+    public static function reset_cache()
     {
-        self::$generated = null;
+        self::$credentials = null;
+        self::$credentialError = '';
     }
 
     /**
@@ -139,35 +124,34 @@ final class Config
     }
 
     /**
-     * @return array<string, mixed>
+     * @return array<string, array<string, string>>
      */
-    private static function generated()
+    private static function credentials()
     {
-        if (self::$generated !== null) {
-            return self::$generated;
+        if (self::$credentials !== null) {
+            return self::$credentials;
         }
 
-        $file = PAYMOS_WC_PLUGIN_DIR . 'paymos-config.php';
-        if (!is_readable($file)) {
-            self::$generated = array();
-            return self::$generated;
+        try {
+            self::$credentials = CredentialStore::load();
+        } catch (\Throwable $exception) {
+            self::$credentialError = $exception->getMessage();
+            self::$credentials = array();
         }
 
-        $config = require $file;
-        self::$generated = is_array($config) ? $config : array();
-        return self::$generated;
+        return self::$credentials;
     }
 
-    /**
-     * @param array<string, mixed> $config
-     * @return array<string, mixed>
-     */
-    private static function with_defaults(array $config)
+    private static function mask($value)
     {
-        if (!isset($config['base_url']) || !is_scalar($config['base_url']) || trim((string) $config['base_url']) === '') {
-            $config['base_url'] = self::DEFAULT_BASE_URL;
+        $value = (string) $value;
+        if ($value === '') {
+            return '';
+        }
+        if (strlen($value) <= 12) {
+            return str_repeat('*', strlen($value));
         }
 
-        return $config;
+        return substr($value, 0, 8) . '...' . substr($value, -4);
     }
 }

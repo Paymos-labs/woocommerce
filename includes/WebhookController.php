@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace PaymosWooCommerce;
 
-use Paymos\Client;
-use Paymos\ClientConfig;
 use Paymos\Exception\DuplicateEventException;
 use Paymos\Exception\SignatureMismatchException;
 use Paymos\Exception\TimestampSkewException;
@@ -92,23 +90,21 @@ final class WebhookController
             throw new \RuntimeException('Paymos webhook payload is missing data.order.external_id.');
         }
 
-        $orders = wc_get_orders(array(
-            'limit' => 1,
-            'meta_query' => array(
-                array(
-                    'key' => '_paymos_external_order_id',
-                    'value' => $externalOrderId,
-                    'compare' => '=',
-                ),
-            ),
-            'return' => 'objects',
-        ));
-
-        if (count($orders) === 0) {
-            throw new \RuntimeException('Woo order for Paymos external order id was not found.');
+        if (!preg_match('/^wc_([1-9][0-9]*)(?:_|$)/', $externalOrderId, $matches)) {
+            throw new \RuntimeException('Paymos external order id has an invalid format.');
         }
 
-        $order = $orders[0];
+        $order = wc_get_order((int) $matches[1]);
+        if (!$order) {
+            throw new \RuntimeException('Woo order for Paymos external order id was not found.');
+        }
+        $storedExternalOrderId = method_exists($order, 'get_meta')
+            ? (string) $order->get_meta('_paymos_external_order_id', true)
+            : '';
+        if ($storedExternalOrderId === '' || !hash_equals($storedExternalOrderId, $externalOrderId)) {
+            throw new \RuntimeException('Paymos external order id does not match the Woo order.');
+        }
+
         self::assertOrderMatchesEvent($order, $event, $environment);
         self::reverseVerifyTerminalEvent($eventObject, $order, $environment);
 
@@ -182,7 +178,7 @@ final class WebhookController
         ));
 
         if (!$result->isVerified()) {
-            throw new \RuntimeException('Paymos reverse invoice verification failed: ' . $result->reason());
+            throw new \RuntimeException('Paymos reverse invoice verification failed.');
         }
     }
 
@@ -205,16 +201,11 @@ final class WebhookController
         $config = Config::environment_config($environment);
         foreach (array('api_key', 'api_secret', 'base_url') as $required) {
             if (!isset($config[$required]) || !is_scalar($config[$required]) || trim((string) $config[$required]) === '') {
-                throw new \RuntimeException('Paymos generated config is missing ' . $required . ' for ' . (string) $environment . '.');
+                throw new \RuntimeException('Paymos credentials are incomplete.');
             }
         }
 
-        return new Client(new ClientConfig(
-            (string) $config['api_key'],
-            (string) $config['api_secret'],
-            (string) $config['base_url'],
-            30
-        ));
+        return ClientFactory::create($config);
     }
 
     private static function orderMeta($order, $key)
@@ -226,8 +217,4 @@ final class WebhookController
         return (string) $order->get_meta($key, true);
     }
 
-    public static function set_client_factory_for_tests($factory)
-    {
-        self::$clientFactory = $factory;
-    }
 }

@@ -11,13 +11,22 @@ final class Autoloader
     public static function register()
     {
         spl_autoload_register(array(__CLASS__, 'load'));
-        self::registerSdk();
     }
 
     public static function load($class)
     {
         $prefix = __NAMESPACE__ . '\\';
         if (strncmp($class, $prefix, strlen($prefix)) !== 0) {
+            $sdkPrefix = 'Paymos\\';
+            if (strncmp($class, $sdkPrefix, strlen($sdkPrefix)) !== 0) {
+                return;
+            }
+
+            $relative = substr($class, strlen($sdkPrefix));
+            $file = PAYMOS_WC_PLUGIN_DIR . 'vendor/paymos/php-sdk/src/' . str_replace('\\', '/', $relative) . '.php';
+            if (is_readable($file)) {
+                require_once $file;
+            }
             return;
         }
 
@@ -25,14 +34,6 @@ final class Autoloader
         $file = PAYMOS_WC_PLUGIN_DIR . 'includes/' . str_replace('\\', '/', $relative) . '.php';
         if (is_readable($file)) {
             require_once $file;
-        }
-    }
-
-    private static function registerSdk()
-    {
-        $sdkAutoload = PAYMOS_WC_PLUGIN_DIR . 'vendor/autoload.php';
-        if (is_readable($sdkAutoload)) {
-            require_once $sdkAutoload;
         }
     }
 }

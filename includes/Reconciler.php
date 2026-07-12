@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace PaymosWooCommerce;
 
-use Paymos\Client;
-use Paymos\ClientConfig;
 use Paymos\Plugin\StatusMapper;
 
 defined('ABSPATH') || exit;
@@ -23,7 +21,7 @@ final class Reconciler
 
         $schedules[self::INTERVAL] = array(
             'interval' => 600,
-            'display' => __('Every 10 minutes', 'paymos-woocommerce'),
+            'display' => __('Every 10 minutes', 'paymos-for-woocommerce'),
         );
 
         return $schedules;
@@ -61,12 +59,7 @@ final class Reconciler
         $orders = wc_get_orders(array(
             'limit' => 50,
             'status' => array('pending', 'on-hold', 'failed', 'cancelled'),
-            'meta_query' => array(
-                array(
-                    'key' => '_paymos_invoice_id',
-                    'compare' => 'EXISTS',
-                ),
-            ),
+            'payment_method' => 'paymos',
             'return' => 'objects',
         ));
 
@@ -135,16 +128,11 @@ final class Reconciler
         $config = Config::environment_config($environment);
         foreach (array('api_key', 'api_secret', 'base_url') as $required) {
             if (!isset($config[$required]) || !is_scalar($config[$required]) || trim((string) $config[$required]) === '') {
-                throw new \RuntimeException('Paymos generated config is missing ' . $required . ' for ' . (string) $environment . '.');
+                throw new \RuntimeException('Paymos credentials are incomplete.');
             }
         }
 
-        return new Client(new ClientConfig(
-            (string) $config['api_key'],
-            (string) $config['api_secret'],
-            (string) $config['base_url'],
-            30
-        ));
+        return ClientFactory::create($config);
     }
 
     /**

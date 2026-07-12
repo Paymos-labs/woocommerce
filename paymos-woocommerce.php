@@ -3,36 +3,30 @@
  * Plugin Name: Paymos for WooCommerce
  * Plugin URI: https://paymos.io
  * Description: Accept stablecoin payments in WooCommerce through Paymos.
- * Version: 1.0.0
+ * Version: 1.0.2
  * Author: Paymos
  * Author URI: https://paymos.io
  * License: GPL-2.0-or-later
- * Text Domain: paymos-woocommerce
- * Requires at least: 5.9
+ * Text Domain: paymos-for-woocommerce
+ * Requires at least: 6.2
  * Tested up to: 7.0
  * Requires PHP: 7.4
  * Requires Plugins: woocommerce
  * WC requires at least: 8.0
- * WC tested up to: 10.8
+ * WC tested up to: 10.9
  */
 
 defined('ABSPATH') || exit;
 
 define('PAYMOS_WC_PLUGIN_FILE', __FILE__);
 define('PAYMOS_WC_PLUGIN_DIR', plugin_dir_path(__FILE__));
-define('PAYMOS_WC_PLUGIN_VERSION', '1.0.0');
+define('PAYMOS_WC_PLUGIN_VERSION', '1.0.2');
 
 require_once PAYMOS_WC_PLUGIN_DIR . 'includes/Autoloader.php';
 
 PaymosWooCommerce\Autoloader::register();
 
-add_action('init', static function () {
-    load_plugin_textdomain(
-        'paymos-woocommerce',
-        false,
-        dirname(plugin_basename(PAYMOS_WC_PLUGIN_FILE)) . '/languages'
-    );
-});
+PaymosWooCommerce\ConnectController::register();
 
 add_action('before_woocommerce_init', static function () {
     if (class_exists('\Automattic\WooCommerce\Utilities\FeaturesUtil')) {
@@ -85,4 +79,6 @@ add_action('init', array(PaymosWooCommerce\Reconciler::class, 'maybe_schedule'))
 add_action(PaymosWooCommerce\Reconciler::HOOK, array(PaymosWooCommerce\Reconciler::class, 'run'));
 
 register_deactivation_hook(PAYMOS_WC_PLUGIN_FILE, array(PaymosWooCommerce\Reconciler::class, 'unschedule'));
-register_activation_hook(PAYMOS_WC_PLUGIN_FILE, array(PaymosWooCommerce\EventStore::class, 'install'));
+register_activation_hook(PAYMOS_WC_PLUGIN_FILE, static function () {
+    PaymosWooCommerce\EventStore::install();
+});

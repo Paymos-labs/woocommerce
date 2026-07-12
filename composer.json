@@ -1,0 +1,15 @@
+{
+  "name": "paymos/paymos-for-woocommerce",
+  "description": "Paymos stablecoin payment gateway for WooCommerce",
+  "type": "wordpress-plugin",
+  "license": "GPL-2.0-or-later",
+  "require": {
+    "php": ">=7.4",
+    "paymos/php-sdk": "*"
+  },
+  "autoload": {
+    "psr-4": {
+      "PaymosWooCommerce\\": "includes/"
+    }
+  }
+}

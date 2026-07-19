@@ -3,7 +3,7 @@
  * Plugin Name: Paymos for WooCommerce
  * Plugin URI: https://paymos.io
  * Description: Accept stablecoin payments in WooCommerce through Paymos.
- * Version: 1.0.6
+ * Version: 1.0.7
  * Author: Paymos
  * Author URI: https://paymos.io
  * License: GPL-2.0-or-later
@@ -20,7 +20,7 @@ defined('ABSPATH') || exit;
 
 define('PAYMOS_WC_PLUGIN_FILE', __FILE__);
 define('PAYMOS_WC_PLUGIN_DIR', plugin_dir_path(__FILE__));
-define('PAYMOS_WC_PLUGIN_VERSION', '1.0.6');
+define('PAYMOS_WC_PLUGIN_VERSION', '1.0.7');
 
 require_once PAYMOS_WC_PLUGIN_DIR . 'includes/Autoloader.php';
 

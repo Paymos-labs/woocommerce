@@ -43,3 +43,34 @@ function test_gateway_is_unavailable_until_active_environment_is_configured()
     paymos_store_credentials(array('sandbox' => paymos_test_credentials()['sandbox']));
     assertSameValue(true, $gateway->is_available(), 'gateway must become available when active environment is configured.');
 }
+
+function test_gateway_external_order_id_removes_the_duplicate_woocommerce_prefix()
+{
+    paymos_reset_test_state();
+    $gateway = new Gateway();
+    $order = new class {
+        public function get_id()
+        {
+            return 13;
+        }
+
+        public function get_order_key()
+        {
+            return 'wc_order_9lz0PJIf71XRp';
+        }
+
+        public function get_meta($key, $single = true)
+        {
+            return '';
+        }
+    };
+
+    $method = new ReflectionMethod(Gateway::class, 'externalOrderId');
+    $method->setAccessible(true);
+
+    assertSameValue(
+        'wc_13_9lz0PJIf71XRp',
+        $method->invoke($gateway, $order),
+        'External order ID must keep the numeric order ID first and remove WooCommerce\'s duplicate wc_order_ prefix.'
+    );
+}

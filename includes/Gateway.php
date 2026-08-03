@@ -219,7 +219,13 @@ final class Gateway extends \WC_Payment_Gateway
 
     private function externalOrderId($order)
     {
-        $base = 'wc_' . $order->get_id() . '_' . $order->get_order_key();
+        $orderKey = (string) $order->get_order_key();
+        $woocommercePrefix = 'wc_order_';
+        if (strpos($orderKey, $woocommercePrefix) === 0) {
+            $orderKey = substr($orderKey, strlen($woocommercePrefix));
+        }
+
+        $base = 'wc_' . $order->get_id() . '_' . $orderKey;
 
         if (!method_exists($order, 'get_meta')) {
             return $base;

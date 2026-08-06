@@ -1,0 +1,315 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: Paymos for WooCommerce 1.0.0\n"
+"Report-Msgid-Bugs-To: support@paymos.io\n"
+"Last-Translator: Paymos <support@paymos.io>\n"
+"Language-Team: Paymos <support@paymos.io>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"POT-Creation-Date: 2026-07-12T10:32:14+00:00\n"
+"PO-Revision-Date: 2026-06-22 12:00+0000\n"
+"Language: tr_TR\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+#. Plugin Name of the plugin
+#: paymos-woocommerce.php
+msgid "Paymos for WooCommerce"
+msgstr "Paymos for WooCommerce"
+
+#. Plugin URI of the plugin
+#. Author URI of the plugin
+#: paymos-woocommerce.php
+msgid "https://paymos.io"
+msgstr "https://paymos.io"
+
+#. Description of the plugin
+#: paymos-woocommerce.php
+msgid "Accept stablecoin payments in WooCommerce through Paymos."
+msgstr "WooCommerce'de Paymos ile stablecoin ödemesi kabul edin."
+
+#. Author of the plugin
+#: paymos-woocommerce.php
+#: includes/Gateway.php:16
+msgid "Paymos"
+msgstr "Paymos"
+
+#: includes/AdminOrderMetaBox.php:22
+msgid "Paymos Payment"
+msgstr "Paymos Ödemesi"
+
+#: includes/AdminOrderMetaBox.php:35
+msgid "Paymos order data is not available."
+msgstr "Paymos sipariş verileri kullanılamıyor."
+
+#: includes/AdminOrderMetaBox.php:40
+msgid "Invoice ID"
+msgstr "Fatura ID'si"
+
+#: includes/AdminOrderMetaBox.php:41
+msgid "External order ID"
+msgstr "Harici sipariş ID'si"
+
+#: includes/AdminOrderMetaBox.php:42
+msgid "Amount snapshot"
+msgstr "Tutar anlık kaydı"
+
+#: includes/AdminOrderMetaBox.php:43
+msgid "Last event"
+msgstr "Son olay"
+
+#: includes/AdminOrderMetaBox.php:44
+msgid "Last event ID"
+msgstr "Son olay ID'si"
+
+#: includes/AdminOrderMetaBox.php:45
+msgid "Last event at"
+msgstr "Son olay zamanı"
+
+#: includes/AdminOrderMetaBox.php:46
+msgid "Last status"
+msgstr "Son durum"
+
+#: includes/AdminOrderMetaBox.php:47
+msgid "Amount mismatch"
+msgstr "Tutar uyuşmazlığı"
+
+#: includes/AdminOrderMetaBox.php:62
+msgid "Open Paymos checkout"
+msgstr "Paymos ödeme sayfasını aç"
+
+#: includes/Blocks.php:54
+#: includes/Gateway.php:28
+#: includes/Gateway.php:47
+msgid "Pay with stablecoins"
+msgstr "Stablecoin ile ödeyin"
+
+#: includes/Blocks.php:55
+#: includes/Gateway.php:29
+#: includes/Gateway.php:52
+msgid "Pay with USDT or USDC across 13 networks — Tron, Ethereum, Polygon, Base, Solana and more. No price volatility, no chargebacks, settlement on-chain in minutes."
+msgstr "Tron, Ethereum, Polygon, Base, Solana ve daha fazlası dahil 13 ağda USDT veya USDC ile ödeyin. Kur oynaklığı yok, iade talebi yok, tahsilat dakikalar içinde on-chain."
+
+#: includes/ConnectController.php:44
+msgid "Starting secure connection…"
+msgstr "Güvenli bağlantı başlatılıyor…"
+
+#: includes/ConnectController.php:45
+msgid "Waiting for approval in Paymos…"
+msgstr "Paymos'ta onay bekleniyor…"
+
+#: includes/ConnectController.php:46
+msgid "Paymos connected. Reloading settings…"
+msgstr "Paymos bağlandı. Ayarlar yeniden yükleniyor…"
+
+#: includes/ConnectController.php:47
+msgid "Paymos connection failed."
+msgstr "Paymos bağlantısı başarısız oldu."
+
+#: includes/ConnectController.php:48
+msgid "Allow pop-ups for this page and try again."
+msgstr "Bu sayfa için açılır pencerelere izin verin ve tekrar deneyin."
+
+#: includes/Gateway.php:17
+msgid "Accept USDT and USDC at checkout. Settled on-chain in the same stablecoin, no chargebacks."
+msgstr "Ödeme adımında USDT ve USDC kabul edin. Tahsilat aynı stablecoin'de on-chain yapılır, iade talebi yoktur."
+
+#: includes/Gateway.php:39
+msgid "Enable/Disable"
+msgstr "Etkinleştir / Devre dışı bırak"
+
+#: includes/Gateway.php:41
+msgid "Enable Paymos payments"
+msgstr "Paymos ödemelerini etkinleştir"
+
+#: includes/Gateway.php:45
+msgid "Title"
+msgstr "Başlık"
+
+#: includes/Gateway.php:50
+msgid "Description"
+msgstr "Açıklama"
+
+#: includes/Gateway.php:55
+msgid "Mode"
+msgstr "Mod"
+
+#: includes/Gateway.php:59
+#: includes/Gateway.php:285
+msgid "Sandbox"
+msgstr "Sandbox"
+
+#: includes/Gateway.php:60
+#: includes/Gateway.php:286
+msgid "Live"
+msgstr "Live"
+
+#: includes/Gateway.php:62
+msgid "Connect once, test in Sandbox, then switch to Live when you are ready."
+msgstr "Bir kez bağlayın, Sandbox'ta test edin, hazır olduğunuzda Live'a geçin."
+
+#: includes/Gateway.php:65
+#: includes/Gateway.php:269
+msgid "Connect Paymos"
+msgstr "Paymos'u bağla"
+
+#: includes/Gateway.php:67
+msgid "Opens Paymos for approval. Paymos reuses or creates one Payment key per environment and reuses or creates the dedicated webhook for this exact store URL."
+msgstr "Onay için Paymos'u açar. Paymos her ortam için bir ödeme anahtarını yeniden kullanır veya oluşturur; bu mağazanın tam URL'si için ayrılmış webhook'u yeniden kullanır veya oluşturur."
+
+#: includes/Gateway.php:70
+msgid "Webhook URL"
+msgstr "Webhook URL'si"
+
+#: includes/Gateway.php:72
+msgid "Registered automatically for Sandbox and Live when you connect this store."
+msgstr "Mağazayı bağladığınızda Sandbox ve Live için otomatik kaydedilir."
+
+#: includes/Gateway.php:75
+msgid "Connection status"
+msgstr "Bağlantı durumu"
+
+#: includes/Gateway.php:77
+msgid "The active environment must be fully configured before Paymos can process checkout."
+msgstr "Paymos ödemeyi işlemeden önce aktif ortam tamamen yapılandırılmış olmalıdır."
+
+#: includes/Gateway.php:80
+msgid "Debug logging"
+msgstr "Hata ayıklama günlüğü"
+
+#: includes/Gateway.php:82
+msgid "Write Paymos logs to WooCommerce logs"
+msgstr "Paymos günlüklerini WooCommerce günlüklerine yaz"
+
+#: includes/Gateway.php:92
+msgid "Paymos payment error: order not found."
+msgstr "Paymos ödeme hatası: sipariş bulunamadı."
+
+#: includes/Gateway.php:116
+msgid "Paymos payment error: unable to create invoice."
+msgstr "Paymos ödeme hatası: fatura oluşturulamadı."
+
+#: includes/Gateway.php:120
+msgid "Paymos payment error: configuration is invalid."
+msgstr "Paymos ödeme hatası: yapılandırma geçersiz."
+
+#: includes/Gateway.php:128
+msgid "Paymos payment error: invalid invoice response."
+msgstr "Paymos ödeme hatası: geçersiz fatura yanıtı."
+
+#: includes/Gateway.php:138
+msgid "Awaiting Paymos payment."
+msgstr "Paymos ödemesi bekleniyor."
+
+#. translators: 1: refund amount with currency, 2: refund reason (may be empty)
+#: includes/Gateway.php:180
+#, php-format
+msgid "Paymos refund requested for %1$s. Send the refund on-chain from your Paymos dashboard — WooCommerce did not record an automatic refund. %2$s"
+msgstr "%1$s tutarında Paymos iadesi talep edildi. İadeyi Paymos Panel'inizden on-chain gönderin — WooCommerce otomatik iade kaydetmedi. %2$s"
+
+#. translators: %s: merchant-provided refund reason
+#: includes/Gateway.php:184
+#, php-format
+msgid "Reason: %s"
+msgstr "Sebep: %s"
+
+#: includes/Gateway.php:193
+msgid "Paymos refunds are processed manually on-chain. Open the invoice in your Paymos dashboard and send the refund to the customer. No automatic refund was recorded."
+msgstr "Paymos iadeleri on-chain olarak elle işlenir. Faturayı Paymos Panel'inizde açın ve iadeyi müşteriye gönderin. Otomatik iade kaydedilmedi."
+
+#: includes/Gateway.php:278
+#: includes/Gateway.php:279
+msgid "Configured"
+msgstr "Yapılandırıldı"
+
+#: includes/Gateway.php:278
+#: includes/Gateway.php:279
+#: includes/Gateway.php:298
+msgid "Missing"
+msgstr "Eksik"
+
+#: includes/Gateway.php:284
+msgid "Active mode"
+msgstr "Aktif mod"
+
+#: includes/Gateway.php:287
+msgid "Active API key"
+msgstr "Aktif API anahtarı"
+
+#: includes/Gateway.php:288
+msgid "Project ID"
+msgstr "Proje ID'si"
+
+#: includes/OrderMapper.php:28
+msgid "Paymos ignored a stale invoice status after payment completed."
+msgstr "Paymos, ödeme tamamlandıktan sonra gelen eski fatura durumunu yok saydı."
+
+#: includes/OrderMapper.php:37
+#: includes/OrderMapper.php:38
+msgid "Paymos payment is confirming."
+msgstr "Paymos ödemesi on-chain onaylanıyor."
+
+#: includes/OrderMapper.php:45
+msgid "Paymos payment amount needs manual review."
+msgstr "Paymos ödeme tutarı elle kontrol gerektiriyor."
+
+#: includes/OrderMapper.php:60
+msgid "Paymos payment completed."
+msgstr "Paymos ödemesi tamamlandı."
+
+#: includes/OrderMapper.php:64
+#: includes/OrderMapper.php:65
+msgid "Paymos invoice was underpaid."
+msgstr "Paymos faturası eksik ödendi."
+
+#: includes/OrderMapper.php:69
+#: includes/OrderMapper.php:70
+msgid "Paymos invoice was cancelled."
+msgstr "Paymos faturası iptal edildi."
+
+#: includes/Reconciler.php:24
+msgid "Every 10 minutes"
+msgstr "Her 10 dakikada bir"
+
+#: includes/StorefrontHooks.php:51
+msgid "Pay invoice"
+msgstr "Faturayı öde"
+
+#: includes/StorefrontHooks.php:52
+msgid "Pay the Paymos invoice for this order"
+msgstr "Bu siparişin Paymos faturasını ödeyin"
+
+#: includes/StorefrontHooks.php:65
+msgid "Settings"
+msgstr "Ayarlar"
+
+#: includes/StorefrontHooks.php:89
+#: includes/StorefrontHooks.php:128
+msgid "Payment confirmation"
+msgstr "Ödeme onayı"
+
+#: includes/StorefrontHooks.php:90
+msgid "Your payment was settled on-chain."
+msgstr "Ödemeniz on-chain tahsil edildi."
+
+#: includes/StorefrontHooks.php:93
+#: includes/StorefrontHooks.php:133
+msgid "View transaction"
+msgstr "İşlemi görüntüle"
+
+#: includes/StorefrontHooks.php:95
+#: includes/StorefrontHooks.php:135
+msgid "Transaction:"
+msgstr "İşlem:"
+
+#: includes/StorefrontHooks.php:121
+msgid "Payment transaction:"
+msgstr "Ödeme işlemi:"
+
+#: includes/StorefrontHooks.php:123
+msgid "View on explorer:"
+msgstr "Gezginde görüntüle:"
+
+#: includes/StorefrontHooks.php:131
+msgid "Settled on-chain."
+msgstr "On-chain tahsil edildi."

@@ -1,0 +1,218 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: Paymos for WooCommerce 1.0.0\n"
+"Report-Msgid-Bugs-To: support@paymos.io\n"
+"Last-Translator: Paymos <support@paymos.io>\n"
+"Language-Team: Paymos <support@paymos.io>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: de_DE\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+msgid "Paymos for WooCommerce"
+msgstr "Paymos für WooCommerce"
+
+msgid "https://paymos.io"
+msgstr "https://paymos.io"
+
+msgid "Accept stablecoin payments in WooCommerce through Paymos."
+msgstr "Stablecoin-Zahlungen in WooCommerce über Paymos annehmen."
+
+msgid "Paymos"
+msgstr "Paymos"
+
+msgid "Paymos Payment"
+msgstr "Paymos-Zahlung"
+
+msgid "Paymos order data is not available."
+msgstr "Es liegen keine Paymos-Bestelldaten vor."
+
+msgid "Invoice ID"
+msgstr "Rechnungs-ID"
+
+msgid "External order ID"
+msgstr "Externe Bestell-ID"
+
+msgid "Amount snapshot"
+msgstr "Erfasster Betrag"
+
+msgid "Last event"
+msgstr "Letztes Ereignis"
+
+msgid "Last event ID"
+msgstr "ID des letzten Ereignisses"
+
+msgid "Last event at"
+msgstr "Letztes Ereignis am"
+
+msgid "Last status"
+msgstr "Letzter Status"
+
+msgid "Amount mismatch"
+msgstr "Betragsabweichung"
+
+msgid "Open Paymos checkout"
+msgstr "Paymos-Checkout öffnen"
+
+msgid "Pay with stablecoins"
+msgstr "Mit Stablecoins bezahlen"
+
+msgid "Pay with USDT or USDC across 13 networks — Tron, Ethereum, Polygon, Base, Solana and more. No price volatility, no chargebacks, settlement on-chain in minutes."
+msgstr "Zahlen Sie mit USDT oder USDC über 13 Netzwerke — Tron, Ethereum, Polygon, Base, Solana und weitere. Keine Kursschwankungen, keine Rückbuchungen, Abwicklung on-chain in Minuten."
+
+msgid "Starting secure connection…"
+msgstr "Sichere Verbindung wird aufgebaut …"
+
+msgid "Waiting for approval in Paymos…"
+msgstr "Warten auf die Bestätigung in Paymos …"
+
+msgid "Paymos connected. Reloading settings…"
+msgstr "Paymos verbunden. Einstellungen werden neu geladen …"
+
+msgid "Paymos connection failed."
+msgstr "Die Verbindung zu Paymos ist fehlgeschlagen."
+
+msgid "Allow pop-ups for this page and try again."
+msgstr "Erlauben Sie Pop-ups für diese Seite und versuchen Sie es erneut."
+
+msgid "Accept USDT and USDC at checkout. Settled on-chain in the same stablecoin, no chargebacks."
+msgstr "Nehmen Sie USDT und USDC im Checkout an. Abwicklung on-chain im selben Stablecoin, keine Rückbuchungen."
+
+msgid "Enable/Disable"
+msgstr "Aktivieren/Deaktivieren"
+
+msgid "Enable Paymos payments"
+msgstr "Paymos-Zahlungen aktivieren"
+
+msgid "Title"
+msgstr "Titel"
+
+msgid "Description"
+msgstr "Beschreibung"
+
+msgid "Mode"
+msgstr "Modus"
+
+msgid "Sandbox"
+msgstr "Sandbox"
+
+msgid "Live"
+msgstr "Live"
+
+msgid "Connect once, test in Sandbox, then switch to Live when you are ready."
+msgstr "Einmal verbinden, in der Sandbox testen und auf Live umstellen, wenn Sie bereit sind."
+
+msgid "Connect Paymos"
+msgstr "Connect Paymos"
+
+msgid "Opens Paymos for approval. Paymos reuses or creates one Payment key per environment and reuses or creates the dedicated webhook for this exact store URL."
+msgstr "Öffnet Paymos zur Bestätigung. Paymos nutzt je Umgebung einen Payment-Schlüssel weiter oder legt ihn an und verwendet den eigenen Webhook für genau diese Shop-URL weiter oder erstellt ihn."
+
+msgid "Webhook URL"
+msgstr "Webhook-URL"
+
+msgid "Registered automatically for Sandbox and Live when you connect this store."
+msgstr "Wird für Sandbox und Live automatisch eingetragen, sobald Sie diesen Shop verbinden."
+
+msgid "Connection status"
+msgstr "Verbindungsstatus"
+
+msgid "The active environment must be fully configured before Paymos can process checkout."
+msgstr "Die aktive Umgebung muss vollständig eingerichtet sein, bevor Paymos den Checkout abwickeln kann."
+
+msgid "Debug logging"
+msgstr "Diagnoseprotokoll"
+
+msgid "Write Paymos logs to WooCommerce logs"
+msgstr "Paymos-Protokolle in die WooCommerce-Protokolle schreiben"
+
+msgid "Paymos payment error: order not found."
+msgstr "Paymos-Zahlungsfehler: Bestellung nicht gefunden."
+
+msgid "Paymos payment error: unable to create invoice."
+msgstr "Paymos-Zahlungsfehler: Die Rechnung konnte nicht angelegt werden."
+
+msgid "Paymos payment error: configuration is invalid."
+msgstr "Paymos-Zahlungsfehler: Die Konfiguration ist ungültig."
+
+msgid "Paymos payment error: invalid invoice response."
+msgstr "Paymos-Zahlungsfehler: Ungültige Antwort auf die Rechnungsanfrage."
+
+msgid "Awaiting Paymos payment."
+msgstr "Warten auf die Paymos-Zahlung."
+
+msgid "Paymos refund requested for %1$s. Send the refund on-chain from your Paymos dashboard — WooCommerce did not record an automatic refund. %2$s"
+msgstr "Paymos-Rückerstattung über %1$s angefordert. Senden Sie die Rückerstattung on-chain aus Ihrem Paymos Dashboard — WooCommerce hat keine automatische Rückerstattung erfasst. %2$s"
+
+msgid "Reason: %s"
+msgstr "Grund: %s"
+
+msgid "Paymos refunds are processed manually on-chain. Open the invoice in your Paymos dashboard and send the refund to the customer. No automatic refund was recorded."
+msgstr "Paymos-Rückerstattungen laufen von Hand on-chain. Öffnen Sie die Rechnung in Ihrem Paymos Dashboard und senden Sie die Rückerstattung an die Kundschaft. Es wurde keine automatische Rückerstattung erfasst."
+
+msgid "Configured"
+msgstr "Eingerichtet"
+
+msgid "Missing"
+msgstr "Fehlt"
+
+msgid "Active mode"
+msgstr "Aktiver Modus"
+
+msgid "Active API key"
+msgstr "Aktiver API-Schlüssel"
+
+msgid "Project ID"
+msgstr "Projekt-ID"
+
+msgid "Paymos ignored a stale invoice status after payment completed."
+msgstr "Paymos hat nach Abschluss der Zahlung einen veralteten Rechnungsstatus verworfen."
+
+msgid "Paymos payment is confirming."
+msgstr "Die Paymos-Zahlung wird bestätigt."
+
+msgid "Paymos payment amount needs manual review."
+msgstr "Der Paymos-Zahlungsbetrag muss von Hand geprüft werden."
+
+msgid "Paymos payment completed."
+msgstr "Die Paymos-Zahlung ist abgeschlossen."
+
+msgid "Paymos invoice was underpaid."
+msgstr "Die Paymos-Rechnung wurde unterbezahlt."
+
+msgid "Paymos invoice was cancelled."
+msgstr "Die Paymos-Rechnung wurde storniert."
+
+msgid "Every 10 minutes"
+msgstr "Alle 10 Minuten"
+
+msgid "Pay invoice"
+msgstr "Rechnung bezahlen"
+
+msgid "Pay the Paymos invoice for this order"
+msgstr "Die Paymos-Rechnung für diese Bestellung bezahlen"
+
+msgid "Settings"
+msgstr "Einstellungen"
+
+msgid "Payment confirmation"
+msgstr "Zahlungsbestätigung"
+
+msgid "Your payment was settled on-chain."
+msgstr "Ihre Zahlung wurde on-chain abgewickelt."
+
+msgid "View transaction"
+msgstr "Transaktion ansehen"
+
+msgid "Transaction:"
+msgstr "Transaktion:"
+
+msgid "Payment transaction:"
+msgstr "Zahlungstransaktion:"
+
+msgid "View on explorer:"
+msgstr "Im Explorer ansehen:"
+
+msgid "Settled on-chain."
+msgstr "On-chain abgewickelt."

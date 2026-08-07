@@ -6,6 +6,10 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 The public release history also lives at [paymos.io/changelog](https://paymos.io/changelog).
 
+## [1.3.2] - 2026-08-07
+
+- fix(plugins): tell the merchant an invoice was underpaid, not confirming
+
 ## [1.3.1] - 2026-08-07
 
 - fix(cms-connect): open the approval tab and return the merchant to the store

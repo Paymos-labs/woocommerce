@@ -45,7 +45,9 @@ final class ConnectController
                 'waiting' => __('Waiting for approval in Paymos…', 'paymos-for-woocommerce'),
                 'connected' => __('Paymos connected. Reloading settings…', 'paymos-for-woocommerce'),
                 'failed' => __('Paymos connection failed.', 'paymos-for-woocommerce'),
-                'popup' => __('Allow pop-ups for this page and try again.', 'paymos-for-woocommerce'),
+                'blocked' => __('Your browser blocked the approval tab.', 'paymos-for-woocommerce'),
+                'openApproval' => __('Open the approval page', 'paymos-for-woocommerce'),
+                'code' => __('Code:', 'paymos-for-woocommerce'),
             ),
         ));
     }
@@ -54,7 +56,7 @@ final class ConnectController
     {
         self::authorizeAjax();
         try {
-            $state = self::client()->start('woocommerce', self::sourceUrl());
+            $state = self::client()->start('woocommerce', self::sourceUrl(), self::settingsUrl());
             ConnectStateStore::save($state);
             wp_send_json_success(array(
                 'verification_url' => $state['verification_url'],
@@ -115,5 +117,15 @@ final class ConnectController
     private static function sourceUrl()
     {
         return rtrim((string) home_url('/'), '/');
+    }
+
+    /**
+     * Where approval should drop the merchant back. Paymos only honours it when it shares
+     * an origin with the store URL above, so a site whose admin lives on another host simply
+     * gets the Paymos confirmation screen instead of a redirect.
+     */
+    private static function settingsUrl()
+    {
+        return (string) admin_url('admin.php?page=wc-settings&tab=checkout&section=paymos');
     }
 }

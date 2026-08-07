@@ -73,8 +73,14 @@ msgstr "Paymos verbunden. Einstellungen werden neu geladen …"
 msgid "Paymos connection failed."
 msgstr "Die Verbindung zu Paymos ist fehlgeschlagen."
 
-msgid "Allow pop-ups for this page and try again."
-msgstr "Erlauben Sie Pop-ups für diese Seite und versuchen Sie es erneut."
+msgid "Your browser blocked the approval tab."
+msgstr "Ihr Browser hat den Bestätigungs-Tab blockiert."
+
+msgid "Open the approval page"
+msgstr "Bestätigungsseite öffnen"
+
+msgid "Code:"
+msgstr "Code:"
 
 msgid "Accept USDT and USDC at checkout. Settled on-chain in the same stablecoin, no chargebacks."
 msgstr "Nehmen Sie USDT und USDC im Checkout an. Abwicklung on-chain im selben Stablecoin, keine Rückbuchungen."

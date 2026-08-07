@@ -6,6 +6,11 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 The public release history also lives at [paymos.io/changelog](https://paymos.io/changelog).
 
+## [1.3.1] - 2026-08-07
+
+- fix(cms-connect): open the approval tab and return the merchant to the store
+- chore: bundle Paymos PHP SDK v1.3.1
+
 ## [1.3.0] - 2026-08-06
 
 - feat(locales): Spanish blog and plugin catalogs

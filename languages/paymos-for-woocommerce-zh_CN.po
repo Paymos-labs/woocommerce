@@ -111,8 +111,16 @@ msgid "Paymos connection failed."
 msgstr "Paymos 连接失败。"
 
 #: includes/ConnectController.php:48
-msgid "Allow pop-ups for this page and try again."
-msgstr "请允许此页面的弹出窗口后重试。"
+msgid "Your browser blocked the approval tab."
+msgstr "您的浏览器阻止了审批标签页。"
+
+#: includes/ConnectController.php:49
+msgid "Open the approval page"
+msgstr "打开审批页面"
+
+#: includes/ConnectController.php:50
+msgid "Code:"
+msgstr "代码："
 
 #: includes/Gateway.php:17
 msgid "Accept USDT and USDC at checkout. Settled on-chain in the same stablecoin, no chargebacks."

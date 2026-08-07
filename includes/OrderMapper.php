@@ -32,10 +32,20 @@ final class OrderMapper
 
         switch ($action) {
             case StatusMapper::ACTION_CONFIRMING:
-            case StatusMapper::ACTION_AWAITING_PAYMENT:
                 if (!$order->is_paid()) {
                     $order->update_status('on-hold', __('Paymos payment is confirming.', 'paymos-for-woocommerce'));
                     $order->add_order_note(__('Paymos payment is confirming.', 'paymos-for-woocommerce'));
+                }
+                break;
+
+            // Held for the same reason as confirming, but for a different cause, so it
+            // must not borrow that wording: a short payment needs the customer to send
+            // the rest, while "confirming" tells the merchant to simply wait.
+            case StatusMapper::ACTION_AWAITING_PAYMENT:
+                if (!$order->is_paid()) {
+                    $note = $this->awaitingPaymentNote($event);
+                    $order->update_status('on-hold', $note);
+                    $order->add_order_note($note);
                 }
                 break;
 
@@ -90,6 +100,39 @@ final class OrderMapper
      * @param array<string, mixed> $event
      * @return array{tx_hash: string, explorer_url: string}
      */
+    /**
+     * ACTION_AWAITING_PAYMENT covers two very different situations: the customer paid
+     * less than the invoice, or a payment that had been counted vanished in a chain
+     * reorg. Only the first is the customer's to fix, so the note names the shortfall
+     * whenever the server reported one.
+     *
+     * @param array<string, mixed> $event
+     * @return string
+     */
+    private function awaitingPaymentNote(array $event)
+    {
+        $payment = isset($event['data']['payment']) && is_array($event['data']['payment'])
+            ? $event['data']['payment']
+            : array();
+        $remaining = isset($payment['remaining']) && is_scalar($payment['remaining'])
+            ? trim((string) $payment['remaining'])
+            : '';
+        $currency = isset($payment['currency']) && is_scalar($payment['currency'])
+            ? trim((string) $payment['currency'])
+            : '';
+
+        if ($remaining === '' || !is_numeric($remaining) || (float) $remaining <= 0) {
+            return __('Paymos is waiting for the payment again — a confirmed transfer was rolled back on-chain.', 'paymos-for-woocommerce');
+        }
+
+        return sprintf(
+            /* translators: 1: outstanding amount, 2: token symbol such as USDT */
+            __('Paymos received only part of the payment. %1$s %2$s is still outstanding — the order stays on hold until the customer sends the rest.', 'paymos-for-woocommerce'),
+            $remaining,
+            $currency !== '' ? $currency : __('in the invoice currency', 'paymos-for-woocommerce')
+        );
+    }
+
     private function selectedTransfer(array $event)
     {
         $transfers = null;

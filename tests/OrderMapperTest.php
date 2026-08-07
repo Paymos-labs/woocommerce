@@ -196,6 +196,51 @@ function test_order_mapper_marks_confirming_on_hold()
     assertSameValue('on-hold', $order->statusUpdates[0][0], 'invoice.confirming must keep order on hold.');
 }
 
+function test_order_mapper_names_the_shortfall_on_an_underpaid_invoice()
+{
+    $order = new FakeOrder();
+    $mapper = new OrderMapper();
+
+    $mapper->apply($order, array(
+        'event_type' => 'invoice.underpaid_waiting',
+        'data' => array(
+            'status' => 'underpaid_waiting',
+            'payment' => array('currency' => 'USDT', 'paid' => '4.94', 'remaining' => '7.41'),
+        ),
+    ));
+
+    assertSameValue('on-hold', $order->statusUpdates[0][0], 'An underpaid invoice must hold the order.');
+
+    $note = implode(' ', $order->notes);
+    assertTrueValue(strpos($note, '7.41') !== false, 'The outstanding amount must be named in the order note.');
+    assertTrueValue(strpos($note, 'USDT') !== false, 'The token must be named in the order note.');
+    // "confirming" tells the merchant to wait; an underpayment needs the customer to
+    // send more. Borrowing that wording hides the only action that resolves the order.
+    assertTrueValue(
+        stripos($note, 'confirming') === false,
+        'An underpaid invoice must not be reported as a payment that is confirming.'
+    );
+}
+
+function test_order_mapper_reports_a_rolled_back_payment_without_inventing_a_shortfall()
+{
+    $order = new FakeOrder();
+    $mapper = new OrderMapper();
+
+    // Reorg regression: the same action, but nothing is outstanding for the customer.
+    $mapper->apply($order, array(
+        'event_type' => 'invoice.awaiting_payment',
+        'data' => array('status' => 'awaiting_payment', 'payment' => array('currency' => 'USDT', 'remaining' => '0')),
+    ));
+
+    $note = implode(' ', $order->notes);
+    assertSameValue('on-hold', $order->statusUpdates[0][0], 'A rolled-back payment must hold the order.');
+    assertTrueValue(
+        stripos($note, 'outstanding') === false,
+        'A reorg rollback must not tell the merchant the customer still owes money.'
+    );
+}
+
 function test_order_mapper_cancels_expired_invoice()
 {
     $order = new FakeOrder();

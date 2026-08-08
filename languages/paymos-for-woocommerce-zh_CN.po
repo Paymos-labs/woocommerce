@@ -19,7 +19,7 @@ msgstr ""
 #. Plugin Name of the plugin
 #: paymos-woocommerce.php
 msgid "Paymos for WooCommerce"
-msgstr "Paymos for WooCommerce"
+msgstr "适用于 WooCommerce 的 Paymos"
 
 #. Plugin URI of the plugin
 #. Author URI of the plugin
@@ -171,7 +171,7 @@ msgstr "打开 Paymos 以完成授权。Paymos 会为每个环境复用或创建
 
 #: includes/Gateway.php:70
 msgid "Webhook URL"
-msgstr "Webhook URL"
+msgstr "Webhook 地址"
 
 #: includes/Gateway.php:72
 msgid "Registered automatically for Sandbox and Live when you connect this store."
@@ -325,3 +325,7 @@ msgstr "在区块浏览器中查看："
 #: includes/StorefrontHooks.php:131
 msgid "Settled on-chain."
 msgstr "已链上结算。"
+
+#: includes/OrderMapper.php:132
+msgid "in the invoice currency"
+msgstr "以账单货币计"

@@ -321,3 +321,7 @@ msgstr "Открывает Paymos для подтверждения. Для ка
 #: includes/Gateway.php:72
 msgid "Registered automatically for Sandbox and Live when you connect this store."
 msgstr "Регистрируется автоматически для Sandbox и Live при подключении магазина."
+
+#: includes/OrderMapper.php:132
+msgid "in the invoice currency"
+msgstr "в валюте счёта"

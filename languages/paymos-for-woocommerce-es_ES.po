@@ -110,7 +110,7 @@ msgid "Connect once, test in Sandbox, then switch to Live when you are ready."
 msgstr "Conecta una vez, prueba en Sandbox y cambia a Live cuando estés listo."
 
 msgid "Connect Paymos"
-msgstr "Connect Paymos"
+msgstr "Conectar Paymos"
 
 msgid "Opens Paymos for approval. Paymos reuses or creates one Payment key per environment and reuses or creates the dedicated webhook for this exact store URL."
 msgstr "Abre Paymos para que lo apruebes. Paymos reutiliza o crea una clave de pago por entorno y reutiliza o crea el webhook dedicado para esta URL exacta de la tienda."
@@ -222,3 +222,7 @@ msgstr "Ver en el explorador:"
 
 msgid "Settled on-chain."
 msgstr "Liquidado en la cadena."
+
+#: includes/OrderMapper.php:132
+msgid "in the invoice currency"
+msgstr "en la moneda de la factura"

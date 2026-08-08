@@ -15,7 +15,7 @@ msgstr ""
 #. Plugin Name of the plugin
 #: paymos-woocommerce.php
 msgid "Paymos for WooCommerce"
-msgstr "Paymos for WooCommerce"
+msgstr "WooCommerce için Paymos"
 
 #. Plugin URI of the plugin
 #. Author URI of the plugin
@@ -321,3 +321,7 @@ msgstr "Gezginde görüntüle:"
 #: includes/StorefrontHooks.php:131
 msgid "Settled on-chain."
 msgstr "On-chain tahsil edildi."
+
+#: includes/OrderMapper.php:132
+msgid "in the invoice currency"
+msgstr "fatura para biriminde"

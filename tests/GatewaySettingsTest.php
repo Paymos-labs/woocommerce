@@ -65,7 +65,7 @@ function test_gateway_external_order_id_removes_the_duplicate_woocommerce_prefix
         }
     };
 
-    $method = new ReflectionMethod(Gateway::class, 'externalOrderId');
+    $method = paymos_reflect_open(new ReflectionMethod(Gateway::class, 'externalOrderId'));
 
     assertSameValue(
         'wc_13_9lz0PJIf71XRp',

@@ -372,9 +372,31 @@ function paymos_store_credentials(array $environments)
     PaymosWooCommerce\Config::reset_cache();
 }
 
+/**
+ * Open a private member for reflection across the whole declared PHP range.
+ *
+ * Before 8.1 the call is mandatory — reaching a private member without it
+ * throws. From 8.5 it must NOT be made: the method is deprecated, and this
+ * harness escalates deprecations to failures. One helper so neither end of
+ * "Requires PHP: 7.4" through 8.5 is broken by fixing the other.
+ *
+ * @param ReflectionProperty|ReflectionMethod $reflector
+ * @return ReflectionProperty|ReflectionMethod
+ */
+function paymos_reflect_open($reflector)
+{
+    if (PHP_VERSION_ID < 80100) {
+        $reflector->setAccessible(true);
+    }
+
+    return $reflector;
+}
+
 function paymos_set_webhook_client_factory($factory)
 {
-    $property = new ReflectionProperty(PaymosWooCommerce\WebhookController::class, 'clientFactory');
+    $property = paymos_reflect_open(
+        new ReflectionProperty(PaymosWooCommerce\WebhookController::class, 'clientFactory')
+    );
     $property->setValue(null, $factory);
 }
 

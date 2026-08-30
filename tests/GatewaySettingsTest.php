@@ -66,7 +66,6 @@ function test_gateway_external_order_id_removes_the_duplicate_woocommerce_prefix
     };
 
     $method = new ReflectionMethod(Gateway::class, 'externalOrderId');
-    $method->setAccessible(true);
 
     assertSameValue(
         'wc_13_9lz0PJIf71XRp',

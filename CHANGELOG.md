@@ -8,6 +8,17 @@ The public release history also lives at [paymos.io/changelog](https://paymos.io
 
 ## [Unreleased]
 
+## [1.3.10] - 2026-08-30
+
+- test(plugins): сьюта WooCommerce впервые прогнана на 7.4 и 8.0 — и не проходила там
+- chore: rebuild canonical CMS package
+
+### Fixed
+- Entries that were present, non-empty and still English — `Connect Paymos` in
+  German and Spanish, the plugin name in Turkish, the plugin name and
+  `Webhook URL` in Chinese — and one string missing from every catalogue
+  (`in the invoice currency`, the fallback in the underpayment notice).
+
 ## [1.3.9] - 2026-08-30
 
 - fix(plugins): CMS marketplace readiness spec, phases 1-3

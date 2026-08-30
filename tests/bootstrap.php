@@ -3,7 +3,35 @@
 declare(strict_types=1);
 
 define('ABSPATH', __DIR__);
+
+// WooCommerce Blocks payment integration base (loaded only when Woo Blocks is
+// active at runtime; stubbed so the compile-all gate can include Blocks.php).
+if (!class_exists('Automattic\\WooCommerce\\Blocks\\Payments\\Integrations\\AbstractPaymentMethodType')) {
+    abstract class AbstractPaymentMethodTypeStubForGate
+    {
+        protected $name = '';
+
+        public function initialize() {}
+        public function is_active() { return false; }
+        public function get_payment_method_script_handles() { return array(); }
+        public function get_payment_method_data() { return array(); }
+    }
+}
+if (!class_exists('Automattic\WooCommerce\Blocks\Payments\Integrations\AbstractPaymentMethodType')) {
+    class_alias('AbstractPaymentMethodTypeStubForGate', 'Automattic\WooCommerce\Blocks\Payments\Integrations\AbstractPaymentMethodType');
+}
 define('PAYMOS_WC_PLUGIN_DIR', dirname(__DIR__) . DIRECTORY_SEPARATOR);
+
+// Any deprecation, notice or warning inside plugin code must fail the run:
+// platform installers (Magento DI compile above all) escalate PHP 8.4+
+// deprecations to fatals, and a silent one here is how rejections slip through.
+error_reporting(E_ALL);
+set_error_handler(static function ($severity, $message, $file, $line) {
+    if (!(error_reporting() & $severity)) {
+        return false;
+    }
+    throw new ErrorException($message, 0, $severity, $file, $line);
+});
 define('PAYMOS_WC_PLUGIN_FILE', PAYMOS_WC_PLUGIN_DIR . 'paymos-woocommerce.php');
 
 $GLOBALS['paymos_test_options'] = array();
@@ -130,6 +158,61 @@ function plugins_url($path = '', $plugin = '')
     return 'https://shop.example.com/wp-content/plugins/paymos-woocommerce/' . ltrim((string) $path, '/');
 }
 
+// WP runtime functions the plugin's entry file calls at load time (the
+// compile-all gate requires that file, exactly like WordPress does).
+if (!function_exists('plugin_dir_path')) {
+    function plugin_dir_path($file)
+    {
+        return rtrim(dirname($file), '/\\') . DIRECTORY_SEPARATOR;
+    }
+}
+if (!function_exists('plugin_dir_url')) {
+    function plugin_dir_url($file)
+    {
+        return 'https://example.test/wp-content/plugins/' . basename(dirname($file)) . '/';
+    }
+}
+if (!function_exists('plugin_basename')) {
+    function plugin_basename($file)
+    {
+        return basename(dirname($file)) . '/' . basename($file);
+    }
+}
+if (!function_exists('load_plugin_textdomain')) {
+    function load_plugin_textdomain($domain, $deprecated = false, $relative = false)
+    {
+        return true;
+    }
+}
+if (!function_exists('register_activation_hook')) {
+    function register_activation_hook($file, $callback)
+    {
+    }
+}
+
+if (!function_exists('add_filter')) {
+    function add_filter($hook, $callback, $priority = 10, $acceptedArgs = 1)
+    {
+        return true;
+    }
+}
+if (!function_exists('wc_get_template')) {
+    function wc_get_template($template, $args = array(), $templatePath = '', $defaultPath = '')
+    {
+    }
+}
+if (!function_exists('wp_kses_post')) {
+    function wp_kses_post($content)
+    {
+        return $content;
+    }
+}
+if (!function_exists('register_deactivation_hook')) {
+    function register_deactivation_hook()
+    {
+        return array();
+    }
+}
 function add_action($hook, $callback, $priority = 10, $acceptedArgs = 1)
 {
     return true;
@@ -292,7 +375,6 @@ function paymos_store_credentials(array $environments)
 function paymos_set_webhook_client_factory($factory)
 {
     $property = new ReflectionProperty(PaymosWooCommerce\WebhookController::class, 'clientFactory');
-    $property->setAccessible(true);
     $property->setValue(null, $factory);
 }
 

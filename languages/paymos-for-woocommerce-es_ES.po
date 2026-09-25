@@ -226,3 +226,11 @@ msgstr "Liquidado en la cadena."
 #: includes/OrderMapper.php:132
 msgid "in the invoice currency"
 msgstr "en la moneda de la factura"
+
+#: includes/Gateway.php:159
+msgid "Paymos payment needs manual review."
+msgstr "El pago con Paymos hay que revisarlo a mano."
+
+#: includes/Gateway.php:160
+msgid "The store needs to review this order before payment can continue. Please contact the store."
+msgstr "La tienda tiene que revisar este pedido antes de que puedas continuar con el pago. Ponte en contacto con la tienda."

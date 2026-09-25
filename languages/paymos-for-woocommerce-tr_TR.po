@@ -325,3 +325,11 @@ msgstr "On-chain tahsil edildi."
 #: includes/OrderMapper.php:132
 msgid "in the invoice currency"
 msgstr "fatura para biriminde"
+
+#: includes/Gateway.php:159
+msgid "Paymos payment needs manual review."
+msgstr "Paymos ödemesi elle kontrol gerektiriyor."
+
+#: includes/Gateway.php:160
+msgid "The store needs to review this order before payment can continue. Please contact the store."
+msgstr "Bu siparişi önce mağaza incelemeli, ödemeye ancak sonra devam edebilirsiniz. Lütfen mağazayla iletişime geçin."

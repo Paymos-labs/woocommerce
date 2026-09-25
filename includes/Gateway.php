@@ -148,11 +148,16 @@ final class Gateway extends \WC_Payment_Gateway
             }
         } catch (InvoiceReplacementBlockedException $e) {
             // The previous invoice may still be paid, so no second one was cut.
-            // The order goes on hold for the merchant, with the reason.
+            // The order goes on hold for the merchant, with the reason — which
+            // is not always the amount: a mode or project change blocks too.
+            // The buyer is asked to contact the store rather than to try again
+            // or pay another way (BUG-181). The notice is the SDK's
+            // InvoiceReplacementBlockedException message, spelled out so the
+            // string extractor sees it.
             Logger::error('Paymos invoice was not replaced: ' . $e->result()->summary(), array('order_id' => $order_id));
             $order->update_status('on-hold');
-            $order->add_order_note(__('Paymos payment amount needs manual review.', 'paymos-for-woocommerce') . ' ' . $e->result()->summary());
-            wc_add_notice(__('Paymos payment error: unable to create invoice.', 'paymos-for-woocommerce'), 'error');
+            $order->add_order_note(__('Paymos payment needs manual review.', 'paymos-for-woocommerce') . ' ' . $e->result()->summary());
+            wc_add_notice(__('The store needs to review this order before payment can continue. Please contact the store.', 'paymos-for-woocommerce'), 'error');
             return array('result' => 'failure');
         } catch (ApiException $e) {
             Logger::error('Paymos invoice create failed: ' . $e->getMessage(), array('order_id' => $order_id));

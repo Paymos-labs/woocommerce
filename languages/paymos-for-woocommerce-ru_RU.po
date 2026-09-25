@@ -325,3 +325,11 @@ msgstr "Регистрируется автоматически для Sandbox �
 #: includes/OrderMapper.php:132
 msgid "in the invoice currency"
 msgstr "в валюте счёта"
+
+#: includes/Gateway.php:159
+msgid "Paymos payment needs manual review."
+msgstr "Оплату Paymos нужно проверить вручную."
+
+#: includes/Gateway.php:160
+msgid "The store needs to review this order before payment can continue. Please contact the store."
+msgstr "Магазину нужно проверить этот заказ, прежде чем вы сможете продолжить оплату. Обратитесь в магазин."

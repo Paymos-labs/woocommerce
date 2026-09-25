@@ -443,3 +443,43 @@ function test_gateway_cancels_the_old_invoice_in_its_own_environment()
     assertSameValue(array('POST /v1/invoices/inv_old/cancel pk_test', 'POST /v1/invoices pk_live'), $calls, 'cancel with sandbox credentials, create with live.');
     assertSameValue('https://checkout.paymos.test/inv_live', $result['redirect'], 'the buyer lands on the live invoice.');
 }
+
+function test_gateway_blocked_replacement_names_the_real_reason_and_asks_the_buyer_to_contact_the_store()
+{
+    // BUG-181: the note blamed the amount ("Paymos payment amount needs manual
+    // review.") and the buyer read "unable to create invoice". A replacement is
+    // also blocked after a mode or project change, and the old invoice may
+    // still be paid, so the buyer must not be sent to pay again.
+    $order = paymos_replacement_changed_order();
+    paymos_replacement_setup($order, array(
+        'cancel' => array(paymos_replacement_problem(409, 'invoice_cannot_be_cancelled')),
+        'get' => array(array(200, array('invoice_id' => 'inv_old', 'status' => 'awaiting_payment'))),
+    ), $calls);
+
+    (new Gateway())->process_payment(100);
+
+    $result = \Paymos\Plugin\InvoiceReplacementResult::blocked('inv_old', 'awaiting_payment', \Paymos\Plugin\InvoiceReplacementResult::REASON_OPEN);
+    assertSameValue(array('Paymos payment needs manual review. ' . $result->summary()), $order->notes, 'the note carries the SDK summary, not an amount mismatch.');
+    assertSameValue(
+        array(array('error', (new \Paymos\Plugin\InvoiceReplacementBlockedException($result))->getMessage())),
+        $GLOBALS['paymos_test_notices'],
+        'the buyer reads the SDK buyer message.'
+    );
+}
+
+function test_gateway_catalogues_carry_the_blocked_replacement_strings()
+{
+    $expected = array(
+        'Paymos payment needs manual review.',
+        'The store needs to review this order before payment can continue. Please contact the store.',
+    );
+    $dir = dirname(__DIR__) . '/languages/';
+    foreach (array_merge(array('paymos-for-woocommerce.pot'), array_map(static function ($locale) {
+        return 'paymos-for-woocommerce-' . $locale . '.po';
+    }, array('ru_RU', 'de_DE', 'es_ES', 'tr_TR', 'zh_CN'))) as $file) {
+        $text = (string) file_get_contents($dir . $file);
+        foreach ($expected as $msgid) {
+            assertTrueValue(strpos($text, 'msgid "' . $msgid . '"') !== false, $file . ': has "' . $msgid . '".');
+        }
+    }
+}

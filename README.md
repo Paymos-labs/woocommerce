@@ -13,7 +13,7 @@ webhook arrives and the order updates.
 
 ## Requirements
 
-- WordPress 6.2 or later (tested to 7.0);
+- WordPress 6.5 or later (tested to 7.0);
 - WooCommerce 8.0 or later (tested to 10.9);
 - PHP 7.4 or later with the `curl`, `hash`, `json` and `openssl` extensions;
 - a publicly reachable HTTPS store URL, so the webhook can be delivered;

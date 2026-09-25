@@ -55,6 +55,7 @@ require __DIR__ . '/EventStoreTest.php';
 require __DIR__ . '/OrderMapperTest.php';
 require __DIR__ . '/WebhookControllerTest.php';
 require __DIR__ . '/ReconcilerTest.php';
+require __DIR__ . '/GatewayRenewalTest.php';
 
 $count = 0;
 

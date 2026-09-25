@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace PaymosWooCommerce;
 
 use Paymos\Exception\DuplicateEventException;
+use Paymos\Exception\EventInProgressException;
 use Paymos\Exception\SignatureMismatchException;
 use Paymos\Exception\TimestampSkewException;
 use Paymos\Plugin\InvoiceReverseVerifier;
@@ -67,6 +68,12 @@ final class WebhookController
         } catch (DuplicateEventException $e) {
             Logger::info('Paymos duplicate webhook ignored.');
             return new \WP_REST_Response(array('ok' => true, 'duplicate' => true), 200);
+        } catch (EventInProgressException $e) {
+            // Another delivery of this event holds the lock and has not finished.
+            // Not a duplicate: a 2xx would mark it delivered even if that delivery
+            // then fails. 409 makes the server retry; the lock is not ours to drop.
+            Logger::info('Paymos webhook is still being processed by another delivery.');
+            return new \WP_REST_Response(array('error' => 'in_progress'), 409);
         } catch (SignatureMismatchException $e) {
             Logger::error('Paymos webhook signature mismatch.');
             return new \WP_REST_Response(array('error' => 'bad_signature'), 401);

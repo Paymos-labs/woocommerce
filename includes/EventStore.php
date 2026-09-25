@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace PaymosWooCommerce;
 
-use Paymos\Webhook\EventStoreInterface;
+use Paymos\Webhook\CommitAwareEventStoreInterface;
 
 defined('ABSPATH') || exit;
 
-final class EventStore implements EventStoreInterface
+final class EventStore implements CommitAwareEventStoreInterface
 {
     /** @var string */
     private $pendingKey = '';
@@ -85,6 +85,31 @@ final class EventStore implements EventStoreInterface
 
         set_transient($lockKey, '1', 300);
         return true;
+    }
+
+    /**
+     * Whether the event was processed and committed — as opposed to merely
+     * locked by a delivery that has not finished (BUG-103: that one must be
+     * answered non-2xx, or a retry arriving mid-processing marks it delivered).
+     */
+    public function isCommitted($eventId)
+    {
+        global $wpdb;
+
+        if (self::canUseDatabase() && self::$tableReady === true) {
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Lock state must be read directly and cannot be cached.
+            $row = $wpdb->get_row($wpdb->prepare(
+                'SELECT status, expires_at FROM %i WHERE event_hash = %s',
+                self::tableName(),
+                md5((string) $eventId)
+            ), ARRAY_A);
+
+            return is_array($row)
+                && isset($row['status']) && (string) $row['status'] === 'committed'
+                && isset($row['expires_at']) && (int) $row['expires_at'] > time();
+        }
+
+        return (bool) get_transient('paymos_evt_' . md5((string) $eventId));
     }
 
     public function commit()

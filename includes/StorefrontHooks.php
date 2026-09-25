@@ -26,7 +26,8 @@ final class StorefrontHooks
 
     /**
      * Add a "Pay invoice" action to an unpaid Paymos order in My Account so the
-     * buyer can return to the hosted invoice they already started.
+     * buyer can return to the hosted invoice they already started — while that
+     * invoice can still be paid.
      *
      * @param array<string, array<string, string>> $actions
      * @param \WC_Order $order
@@ -40,6 +41,16 @@ final class StorefrontHooks
 
         $url = (string) $order->get_meta('_paymos_payment_url');
         if ($url === '') {
+            return $actions;
+        }
+
+        // An invoice that ended unpaid or passed its deadline leads to an
+        // "expired" checkout. Leave WooCommerce's own pay action, which runs
+        // checkout again: Gateway::process_payment() reads the invoice back
+        // from the server and cuts a fresh one only if the server says it
+        // ended. One the server still holds open (the deadline in the meta is
+        // stale) sends the buyer back to it.
+        if (InvoiceState::needsNewInvoice($order)) {
             return $actions;
         }
 

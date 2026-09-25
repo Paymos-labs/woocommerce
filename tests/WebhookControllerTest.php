@@ -283,3 +283,38 @@ function test_webhook_controller_does_not_commit_event_id_when_processing_fails(
     paymos_set_webhook_client_factory(null);
     unset($GLOBALS['paymos_test_wc_orders']);
 }
+
+function test_webhook_controller_answers_409_while_the_event_is_still_being_processed()
+{
+    // BUG-103: attempt 1 holds the lock (a slow reverse-verify call); the server
+    // gave up after 10 s and retries. A 200 "duplicate" here would mark the
+    // event delivered — lost if attempt 1 then fails. Answer 409, keep the lock.
+    global $wpdb;
+
+    paymos_reset_test_state();
+    $wpdb = null;
+    paymos_store_credentials(array(
+        'sandbox' => array(
+            'api_key' => 'pk_test_key',
+            'api_secret' => 'sk_test_secret',
+            'project_id' => 'prj_123',
+            'webhook_secret' => 'whsec_test',
+            'base_url' => 'https://api.paymos.io',
+        ),
+    ));
+    $lockKey = 'paymos_evt_' . md5('evt_inflight') . '_lock';
+    set_transient($lockKey, '1', 300);
+
+    $timestamp = time();
+    $body = json_encode(array(
+        'event_id' => 'evt_inflight',
+        'event_type' => 'invoice.paid',
+        'version' => 1,
+        'occurred_at' => $timestamp,
+        'data' => array('invoice_id' => 'inv_123', 'status' => 'paid', 'is_test' => true),
+    ));
+    $response = WebhookController::handle(new FakeRestRequest($body, array('x-webhook-signature' => paymos_signed_header('whsec_test', $body, $timestamp))));
+
+    assertSameValue(409, $response->get_status(), 'an event still in flight must be answered non-2xx so the server retries.');
+    assertSameValue('1', get_transient($lockKey), 'the retry must not release the lock the first attempt still holds.');
+}

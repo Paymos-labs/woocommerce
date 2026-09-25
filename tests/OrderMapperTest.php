@@ -266,3 +266,39 @@ function test_order_mapper_does_not_roll_back_paid_order_on_late_cancel_event()
     assertSameValue(array(), $order->statusUpdates, 'late cancel webhook must not roll back an already paid Woo order.');
     assertSameValue('invoice.cancelled', $order->meta['_paymos_last_event_type'], 'late event must still be recorded for audit.');
 }
+
+function test_order_mapper_ignores_a_stale_event_after_a_failed_invoice()
+{
+    // BUG-135: invoice.underpaid (final) failed the order; a delayed
+    // invoice.underpaid_waiting for the same invoice arrives afterwards. Nothing
+    // leaves a final status on the server, so it must not put the order back on
+    // hold (and re-reserve stock) or overwrite the recorded final status.
+    $order = new FakeOrder();
+    $order->update_meta_data('_paymos_last_status', 'underpaid');
+    $mapper = new OrderMapper();
+
+    $mapper->apply($order, array(
+        'event_id' => 'evt_stale',
+        'event_type' => 'invoice.underpaid_waiting',
+        'data' => array(
+            'status' => 'underpaid_waiting',
+            'payment' => array('currency' => 'USDT', 'paid' => '60', 'remaining' => '40'),
+        ),
+    ));
+
+    assertSameValue(array(), $order->statusUpdates, 'a stale event after a final status must not move the order.');
+    assertSameValue(array(), $order->notes, 'a stale event after a final status must not add a note.');
+    assertSameValue('underpaid', $order->meta['_paymos_last_status'], 'the final status must stay recorded.');
+}
+
+function test_order_mapper_keeps_the_final_status_when_a_paid_order_gets_a_stale_event()
+{
+    $order = new FakeOrder();
+    $order->paid = true;
+    $order->update_meta_data('_paymos_last_status', 'paid');
+    $mapper = new OrderMapper();
+
+    $mapper->apply($order, array('event_id' => 'evt_old', 'event_type' => 'invoice.confirming', 'data' => array('status' => 'confirming')));
+
+    assertSameValue('paid', $order->meta['_paymos_last_status'], 'a stale confirming must not overwrite the recorded paid status.');
+}

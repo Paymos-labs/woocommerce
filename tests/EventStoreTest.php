@@ -37,9 +37,11 @@ final class FakeWpdb
         return 1;
     }
 
-    public function prepare($query, $value)
+    public function prepare($query, ...$args)
     {
-        return array('query' => $query, 'value' => $value);
+        // The event hash is always the last placeholder (a %i table name may
+        // come first), which is what get_row() keys on.
+        return array('query' => $query, 'value' => end($args));
     }
 
     public function get_row($prepared, $output = null)
@@ -110,4 +112,39 @@ function test_event_store_release_allows_retry_in_database()
     assertSameValue(true, $retry->remember('evt_db_retry', 3600), 'released processing event must be retryable.');
 
     $wpdb = null;
+}
+
+function test_event_store_tells_a_locked_event_from_a_committed_one_in_database()
+{
+    // BUG-103: remember() answers false for both. The verifier asks
+    // isCommitted() to decide between "duplicate" (2xx) and "in progress".
+    global $wpdb;
+
+    $wpdb = new FakeWpdb();
+    $first = new EventStore();
+    assertSameValue(true, $first->remember('evt_db_inflight', 3600), 'first delivery takes the lock.');
+
+    $retry = new EventStore();
+    assertSameValue(false, $retry->remember('evt_db_inflight', 3600), 'a retry while the lock is held is not new.');
+    assertSameValue(false, $retry->isCommitted('evt_db_inflight'), 'a locked, uncommitted event is not committed.');
+
+    $first->commit();
+    assertSameValue(true, $retry->isCommitted('evt_db_inflight'), 'after commit the event is committed.');
+
+    $wpdb = null;
+}
+
+function test_event_store_tells_a_locked_event_from_a_committed_one_in_transients()
+{
+    global $wpdb;
+
+    paymos_reset_test_state();
+    $wpdb = null;
+    $store = new EventStore();
+    $key = 'paymos_evt_' . md5('evt_transient_inflight');
+    set_transient($key . '_lock', '1', 300);
+    assertSameValue(false, $store->isCommitted('evt_transient_inflight'), 'only a lock: not committed.');
+
+    set_transient($key, '1', 3600);
+    assertSameValue(true, $store->isCommitted('evt_transient_inflight'), 'the committed marker: committed.');
 }

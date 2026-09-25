@@ -13,10 +13,16 @@ final class OrderMapper
     /**
      * @param \WC_Order $order
      * @param array<string, mixed> $event
+     * @param bool $fromReconcile True when the "event" was built by the reconciler
+     *                            from a fetched invoice rather than delivered as a
+     *                            webhook (see awaitingPaymentNote()).
      */
-    public function apply($order, array $event)
+    public function apply($order, array $event, $fromReconcile = false)
     {
         $eventType = isset($event['event_type']) ? (string) $event['event_type'] : '';
+        // Read before recordEvent(): the status this order already reached for
+        // its current invoice.
+        $previousStatus = method_exists($order, 'get_meta') ? (string) $order->get_meta('_paymos_last_status', true) : '';
         $this->recordEvent($order, $event, $eventType);
 
         $status = isset($event['data']['status']) && is_scalar($event['data']['status'])
@@ -29,6 +35,21 @@ final class OrderMapper
             $this->save($order);
             return;
         }
+
+        // Nothing leaves a final status on the server (Invoice.IsTerminal), so an
+        // event that arrives after one is an out-of-order redelivery. Guarding only
+        // paid orders let a late underpaid_waiting pull a failed order back on
+        // hold — and re-reserve its stock. The final status stays recorded.
+        if (StatusMapper::isFinalStatus($previousStatus)) {
+            Logger::info('Paymos ignored an invoice status that arrived after a final one.', array(
+                'final_status' => $previousStatus,
+                'event_type' => $eventType,
+            ));
+            $this->save($order);
+            return;
+        }
+
+        $this->recordStatus($order, $event);
 
         switch ($action) {
             case StatusMapper::ACTION_CONFIRMING:
@@ -43,7 +64,7 @@ final class OrderMapper
             // the rest, while "confirming" tells the merchant to simply wait.
             case StatusMapper::ACTION_AWAITING_PAYMENT:
                 if (!$order->is_paid()) {
-                    $note = $this->awaitingPaymentNote($event);
+                    $note = $this->awaitingPaymentNote($event, $fromReconcile);
                     $order->update_status('on-hold', $note);
                     $order->add_order_note($note);
                 }
@@ -106,10 +127,16 @@ final class OrderMapper
      * reorg. Only the first is the customer's to fix, so the note names the shortfall
      * whenever the server reported one.
      *
+     * A webhook with no shortfall is the reorg case: the server sends
+     * invoice.awaiting_payment for nothing else. The reconciler cannot tell — it sees
+     * the same awaiting_payment for a buyer who picked a token and has not paid
+     * yet — so there the note stays neutral.
+     *
      * @param array<string, mixed> $event
+     * @param bool $fromReconcile
      * @return string
      */
-    private function awaitingPaymentNote(array $event)
+    private function awaitingPaymentNote(array $event, $fromReconcile = false)
     {
         $payment = isset($event['data']['payment']) && is_array($event['data']['payment'])
             ? $event['data']['payment']
@@ -122,6 +149,10 @@ final class OrderMapper
             : '';
 
         if ($remaining === '' || !is_numeric($remaining) || (float) $remaining <= 0) {
+            if ($fromReconcile) {
+                return __('Awaiting Paymos payment.', 'paymos-for-woocommerce');
+            }
+
             return __('Paymos is waiting for the payment again — a confirmed transfer was rolled back on-chain.', 'paymos-for-woocommerce');
         }
 
@@ -204,6 +235,17 @@ final class OrderMapper
             $order->update_meta_data('_paymos_last_event_at', gmdate('c', $ts));
         }
 
+    }
+
+    /**
+     * Recorded apart from the rest of the event, and only for an event that is
+     * actually applied: a stale one must not overwrite the final status the
+     * guards above rely on.
+     *
+     * @param array<string, mixed> $event
+     */
+    private function recordStatus($order, array $event)
+    {
         if (isset($event['data']['status']) && is_scalar($event['data']['status'])) {
             $order->update_meta_data('_paymos_last_status', (string) $event['data']['status']);
         }

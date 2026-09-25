@@ -69,7 +69,7 @@ function test_gateway_external_order_id_removes_the_duplicate_woocommerce_prefix
 
     assertSameValue(
         'wc_13_9lz0PJIf71XRp',
-        $method->invoke($gateway, $order),
+        $method->invoke($gateway, $order, 'sandbox', 'prj_123'),
         'External order ID must keep the numeric order ID first and remove WooCommerce\'s duplicate wc_order_ prefix.'
     );
 }

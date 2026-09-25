@@ -95,10 +95,11 @@ Before any terminal status is written the plugin pulls the invoice back from the
 Merchant API and re-checks it, so a forged or replayed body cannot complete an
 order on its own.
 
-A WP-Cron job runs every ten minutes as the safety net. It takes up to 50 unresolved
-Paymos orders — pending, on hold, failed or cancelled — pulls each invoice from the
-API and pushes it through the same mapping the webhook uses, guards included. A
-store whose webhooks were blocked for an afternoon catches up on its own.
+A WP-Cron job runs every ten minutes as the safety net. It takes up to 50 Paymos
+orders still pending or on hold, and up to 50 failed or cancelled ones whose invoice
+is not final yet, pulls each invoice from the API and pushes it through the same
+mapping the webhook uses, guards included. A store whose webhooks were blocked for
+an afternoon catches up on its own.
 
 ## Troubleshooting
 

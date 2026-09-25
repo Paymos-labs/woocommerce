@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace PaymosWooCommerce;
 
 use Paymos\Exception\ApiException;
+use Paymos\Plugin\InvoiceRenewal;
 
 defined('ABSPATH') || exit;
 
@@ -96,7 +97,7 @@ final class Gateway extends \WC_Payment_Gateway
         try {
             $environment = Config::mode();
             $config = $this->activeEnvironmentConfig($environment);
-            $externalOrderId = $this->externalOrderId($order);
+            $externalOrderId = $this->externalOrderId($order, $environment, (string) $config['project_id']);
 
             $payload = array(
                 'project_id' => (string) $config['project_id'],
@@ -111,6 +112,18 @@ final class Gateway extends \WC_Payment_Gateway
             }
 
             $invoice = $this->client($config)->invoices()->create($payload);
+
+            // The server answers a repeated external_order_id with the invoice it
+            // already made, whatever became of it — so this call is also the read
+            // of the live invoice, and the only thing allowed to decide that it
+            // is replaced. If it can no longer be paid (it ended unpaid, or
+            // nobody started it before the deadline) cut a fresh one. An invoice
+            // the server still holds open is kept, whatever the order meta says.
+            if ($externalOrderId === $this->storedExternalOrderId($order) && InvoiceRenewal::isRequired($invoice)) {
+                $externalOrderId = $this->freshExternalOrderId($order);
+                $payload['external_order_id'] = $externalOrderId;
+                $invoice = $this->client($config)->invoices()->create($payload);
+            }
         } catch (ApiException $e) {
             Logger::error('Paymos invoice create failed: ' . $e->getMessage(), array('order_id' => $order_id));
             wc_add_notice(__('Paymos payment error: unable to create invoice.', 'paymos-for-woocommerce'), 'error');
@@ -134,6 +147,16 @@ final class Gateway extends \WC_Payment_Gateway
         $order->update_meta_data('_paymos_payment_url', $paymentUrl);
         $order->update_meta_data('_paymos_environment', $environment);
         $order->update_meta_data('_paymos_project_id', (string) $config['project_id']);
+        // The status of THIS invoice, as the server just returned it. The order
+        // may carry the final status of a previous invoice (a failed order paid
+        // again); left in place, the mapper would treat every event of the new
+        // invoice as a stale one.
+        $order->update_meta_data('_paymos_last_status', isset($invoice['status']) && is_scalar($invoice['status']) ? (string) $invoice['status'] : '');
+        // A hint for My Account, which must not make an API call per order row
+        // (see InvoiceState). The server moves this deadline when the buyer
+        // picks a network and sends no webhook for it, so it is refreshed here,
+        // on every read of the invoice, and never decides a renewal by itself.
+        $order->update_meta_data('_paymos_expires_at', isset($invoice['expires_at']) && is_numeric($invoice['expires_at']) ? (string) (int) $invoice['expires_at'] : '');
         OrderAmountGuard::capture($order, $order->get_total(), $order->get_currency());
         $order->update_status('on-hold', __('Awaiting Paymos payment.', 'paymos-for-woocommerce'));
         $order->save();
@@ -217,7 +240,7 @@ final class Gateway extends \WC_Payment_Gateway
         return $config;
     }
 
-    private function externalOrderId($order)
+    private function externalOrderId($order, $environment, $projectId)
     {
         $orderKey = (string) $order->get_order_key();
         $woocommercePrefix = 'wc_order_';
@@ -232,15 +255,64 @@ final class Gateway extends \WC_Payment_Gateway
         }
 
         $existing = (string) $order->get_meta('_paymos_external_order_id', true);
-        if ($existing !== '' && OrderAmountGuard::currentMatchesSnapshot($order)) {
+        // Reuse the id whenever it was cut for this amount, environment and
+        // project, even if the order meta says the invoice ended or its deadline
+        // passed: the meta is the order's, not the invoice's, and the deadline
+        // in it is the one from creation, which the server extends when the
+        // buyer picks a network (BUG-163). process_payment() asks the server
+        // with this id and replaces the invoice only on its answer. Another
+        // amount or environment gets a new id, as the server refuses the old
+        // one there (409 invoice_idempotency_conflict); another project never
+        // cut an invoice under it.
+        if ($existing !== '' && OrderAmountGuard::currentMatchesSnapshot($order) && $this->snapshotBelongsTo($order, $environment, $projectId)) {
             return $existing;
         }
 
         if ($existing !== '') {
-            return $base . '_' . time();
+            return $this->freshExternalOrderId($order);
         }
 
         return $base;
+    }
+
+    /**
+     * Whether the stored invoice was cut in this environment and project. An
+     * order from before these were stored carries neither and is taken as
+     * matching.
+     */
+    private function snapshotBelongsTo($order, $environment, $projectId)
+    {
+        $storedEnvironment = (string) $order->get_meta('_paymos_environment', true);
+        $storedProjectId = (string) $order->get_meta('_paymos_project_id', true);
+
+        return ($storedEnvironment === '' || $storedEnvironment === (string) $environment)
+            && ($storedProjectId === '' || $storedProjectId === (string) $projectId);
+    }
+
+    private function storedExternalOrderId($order)
+    {
+        return method_exists($order, 'get_meta') ? (string) $order->get_meta('_paymos_external_order_id', true) : '';
+    }
+
+    /**
+     * A new, never-used external_order_id for this order: the base id plus a
+     * timestamp suffix, moved on by a second if it collides with the stored one.
+     */
+    private function freshExternalOrderId($order)
+    {
+        $orderKey = (string) $order->get_order_key();
+        if (strpos($orderKey, 'wc_order_') === 0) {
+            $orderKey = substr($orderKey, strlen('wc_order_'));
+        }
+
+        $base = 'wc_' . $order->get_id() . '_' . $orderKey;
+        $stamp = time();
+        $candidate = $base . '_' . $stamp;
+        if ($candidate === $this->storedExternalOrderId($order)) {
+            $candidate = $base . '_' . ($stamp + 1);
+        }
+
+        return $candidate;
     }
 
     private function clientId($order)

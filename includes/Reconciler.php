@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace PaymosWooCommerce;
 
+use Paymos\Plugin\AmountGuard;
 use Paymos\Plugin\StatusMapper;
 
 defined('ABSPATH') || exit;
@@ -56,14 +57,25 @@ final class Reconciler
             return 0;
         }
 
-        $orders = wc_get_orders(array(
-            'limit' => 50,
-            'status' => array('pending', 'on-hold', 'failed', 'cancelled'),
-            'payment_method' => 'paymos',
-            'return' => 'objects',
-        ));
+        // Two windows, not one "newest 50" across every status: a burst of
+        // cancellations must not push an order still waiting for its payment out
+        // of reach. Failed and cancelled orders stay in — a late payment on an
+        // invoice that is still open is exactly what the reconciler exists for —
+        // but those whose invoice is already final are skipped below.
+        $orders = array();
+        foreach (array(array('pending', 'on-hold'), array('failed', 'cancelled')) as $statuses) {
+            $batch = wc_get_orders(array(
+                'limit' => 50,
+                'status' => $statuses,
+                'payment_method' => 'paymos',
+                'return' => 'objects',
+            ));
+            if (is_array($batch)) {
+                $orders = array_merge($orders, $batch);
+            }
+        }
 
-        return self::reconcile_orders(is_array($orders) ? $orders : array());
+        return self::reconcile_orders($orders);
     }
 
     /**
@@ -86,6 +98,14 @@ final class Reconciler
                 continue;
             }
 
+            // A final Paymos status never changes again (the server refuses every
+            // transition out of it), so there is nothing to fetch — and applying it
+            // again every 10 minutes only stacked up identical order notes.
+            $lastStatus = self::orderMeta($order, '_paymos_last_status');
+            if (self::isFinalStatus($lastStatus)) {
+                continue;
+            }
+
             $environment = self::orderMeta($order, '_paymos_environment');
             if ($environment === '') {
                 $environment = Config::mode();
@@ -101,9 +121,15 @@ final class Reconciler
                     continue;
                 }
 
+                // Same status as the last one recorded: nothing new to apply.
+                $status = self::field($invoice, array('status'));
+                if ($status !== '' && $status === $lastStatus) {
+                    continue;
+                }
+
                 $event = self::eventFromInvoice($invoice, $now);
                 $beforePaid = method_exists($order, 'is_paid') ? (bool) $order->is_paid() : false;
-                $mapper->apply($order, $event);
+                $mapper->apply($order, $event, true);
                 $afterPaid = method_exists($order, 'is_paid') ? (bool) $order->is_paid() : false;
                 if (!$beforePaid && $afterPaid) {
                     $count++;
@@ -147,7 +173,7 @@ final class Reconciler
 
         return self::matchesIfPresent(self::orderMeta($order, '_paymos_project_id'), $projectId)
             && self::matchesIfPresent(self::orderMeta($order, '_paymos_external_order_id'), $externalOrderId)
-            && self::matchesIfPresent(self::orderMeta($order, '_paymos_invoice_amount'), $amount)
+            && self::amountMatchesIfPresent(self::orderMeta($order, '_paymos_invoice_amount'), $amount)
             && self::matchesIfPresent(strtoupper(self::orderMeta($order, '_paymos_invoice_currency')), strtoupper($currency));
     }
 
@@ -191,6 +217,27 @@ final class Reconciler
         $expected = trim((string) $expected);
         $actual = trim((string) $actual);
         return $expected === '' || $actual === '' || $expected === $actual;
+    }
+
+    /**
+     * Decimal-safe: the snapshot holds two decimals ("2500.00") while the server
+     * echoes a fiat amount at the currency's own scale ("2500" for JPY) — the same
+     * amount, which a string compare skipped on every run.
+     */
+    private static function amountMatchesIfPresent($expected, $actual)
+    {
+        $expected = trim((string) $expected);
+        $actual = trim((string) $actual);
+        return $expected === '' || $actual === '' || AmountGuard::amountsEqual($expected, $actual);
+    }
+
+    private static function isFinalStatus($status)
+    {
+        return in_array(StatusMapper::invoiceAction('', (string) $status), array(
+            StatusMapper::ACTION_PAYMENT_COMPLETE,
+            StatusMapper::ACTION_FAIL_ORDER,
+            StatusMapper::ACTION_CANCEL_ORDER,
+        ), true);
     }
 
     private static function orderMeta($order, $key)

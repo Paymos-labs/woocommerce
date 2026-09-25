@@ -6,6 +6,8 @@ namespace PaymosWooCommerce;
 
 use Paymos\Exception\ApiException;
 use Paymos\Plugin\InvoiceRenewal;
+use Paymos\Plugin\InvoiceReplacement;
+use Paymos\Plugin\InvoiceReplacementBlockedException;
 
 defined('ABSPATH') || exit;
 
@@ -111,6 +113,20 @@ final class Gateway extends \WC_Payment_Gateway
                 $payload['client_id'] = $clientId;
             }
 
+            // A new id replaces the stored invoice (another amount, environment
+            // or project): close that one on the server first (BUG-166).
+            $storedExternalOrderId = $this->storedExternalOrderId($order);
+            if ($storedExternalOrderId !== '' && $externalOrderId !== $storedExternalOrderId) {
+                $storedEnvironment = (string) $order->get_meta('_paymos_environment', true);
+                // The order meta's last status may predate the stored invoice on
+                // orders from older versions, so the server is always asked here.
+                $this->closeBeforeReplacing(
+                    (string) $order->get_meta('_paymos_invoice_id', true),
+                    $storedEnvironment !== '' ? $storedEnvironment : $environment,
+                    ''
+                );
+            }
+
             $invoice = $this->client($config)->invoices()->create($payload);
 
             // The server answers a repeated external_order_id with the invoice it
@@ -119,11 +135,25 @@ final class Gateway extends \WC_Payment_Gateway
             // is replaced. If it can no longer be paid (it ended unpaid, or
             // nobody started it before the deadline) cut a fresh one. An invoice
             // the server still holds open is kept, whatever the order meta says.
-            if ($externalOrderId === $this->storedExternalOrderId($order) && InvoiceRenewal::isRequired($invoice)) {
+            if ($externalOrderId === $storedExternalOrderId && InvoiceRenewal::isRequired($invoice)) {
+                // The status is the server's own answer for the stored id.
+                $this->closeBeforeReplacing(
+                    isset($invoice['invoice_id']) && is_scalar($invoice['invoice_id']) ? (string) $invoice['invoice_id'] : '',
+                    $environment,
+                    isset($invoice['status']) && is_scalar($invoice['status']) ? (string) $invoice['status'] : ''
+                );
                 $externalOrderId = $this->freshExternalOrderId($order);
                 $payload['external_order_id'] = $externalOrderId;
                 $invoice = $this->client($config)->invoices()->create($payload);
             }
+        } catch (InvoiceReplacementBlockedException $e) {
+            // The previous invoice may still be paid, so no second one was cut.
+            // The order goes on hold for the merchant, with the reason.
+            Logger::error('Paymos invoice was not replaced: ' . $e->result()->summary(), array('order_id' => $order_id));
+            $order->update_status('on-hold');
+            $order->add_order_note(__('Paymos payment amount needs manual review.', 'paymos-for-woocommerce') . ' ' . $e->result()->summary());
+            wc_add_notice(__('Paymos payment error: unable to create invoice.', 'paymos-for-woocommerce'), 'error');
+            return array('result' => 'failure');
         } catch (ApiException $e) {
             Logger::error('Paymos invoice create failed: ' . $e->getMessage(), array('order_id' => $order_id));
             wc_add_notice(__('Paymos payment error: unable to create invoice.', 'paymos-for-woocommerce'), 'error');
@@ -223,6 +253,29 @@ final class Gateway extends \WC_Payment_Gateway
     private function client(array $config)
     {
         return ClientFactory::create($config);
+    }
+
+    /**
+     * The order's invoice is about to be replaced. Cancel it on the server
+     * first, in its own environment, or the buyer could pay both (BUG-166):
+     * the SDK cancels it, or confirms from the server that it ended unpaid.
+     * Anything else — paid, still payable, 404, no answer — throws, and
+     * process_payment() puts the order on hold instead of cutting a second
+     * invoice.
+     *
+     * @param string $invoiceId
+     * @param string $environment
+     * @param string $recordedStatus A status the server just reported for it, or ''.
+     */
+    private function closeBeforeReplacing($invoiceId, $environment, $recordedStatus)
+    {
+        $result = (new InvoiceReplacement(function () use ($environment) {
+            return $this->client($this->activeEnvironmentConfig($environment));
+        }))->close($invoiceId, $recordedStatus);
+
+        if (!$result->isClosed()) {
+            throw new InvoiceReplacementBlockedException($result);
+        }
     }
 
     /**

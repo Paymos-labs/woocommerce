@@ -36,6 +36,16 @@ final class OrderMapper
             return;
         }
 
+        // invoice-late-payment: money crossed the invoice's total AFTER it had closed. The order keeps
+        // its terminal decision — one native note, idempotent per invoice, decided BEFORE the
+        // final-status guard below (a late event by definition arrives after a terminal status; the
+        // redelivery guard must not eat it). No status, stock or payment action anywhere here.
+        if ($action === StatusMapper::ACTION_NOTE_PAID_LATE) {
+            $this->addPaidLateNote($order, $event);
+            $this->save($order);
+            return;
+        }
+
         // Nothing leaves a final status on the server (Invoice.IsTerminal), so an
         // event that arrives after one is an out-of-order redelivery. Guarding only
         // paid orders let a late underpaid_waiting pull a failed order back on
@@ -266,6 +276,45 @@ final class OrderMapper
             StatusMapper::ACTION_FAIL_ORDER,
             StatusMapper::ACTION_CANCEL_ORDER,
         ), true);
+    }
+
+    /**
+     * invoice-late-payment: the one allowed effect of a late payment on the order — a native note.
+     * Idempotent per invoice: the marker lands only after the note was actually accepted, so a
+     * sequential duplicate event, a redelivery or a reordered pair never writes a second note.
+     * The invoice id rides the marker because one order can outlive several invoices.
+     *
+     * @param \WC_Order $order
+     * @param array<string, mixed> $event
+     */
+    private function addPaidLateNote($order, array $event)
+    {
+        $invoiceId = isset($event['data']['invoice_id']) && is_scalar($event['data']['invoice_id'])
+            ? (string) $event['data']['invoice_id']
+            : '';
+        $marker = '_paymos_paid_late_note' . ($invoiceId !== '' ? ':' . $invoiceId : '');
+
+        $existing = method_exists($order, 'get_meta') ? (string) $order->get_meta($marker, true) : '';
+        if ($existing !== '') {
+            Logger::info('Paymos paid-late note already recorded for this invoice.', array(
+                'invoice_id' => $invoiceId,
+            ));
+            return;
+        }
+
+        $note = __('Paymos: payment arrived after the invoice deadline and covered the full amount.', 'paymos-for-woocommerce');
+        $noteId = $order->add_order_note($note);
+        if ($noteId === false || $noteId === 0) {
+            // Note rejected (store error): no marker — the next delivery retries, nothing is blessed.
+            Logger::info('Paymos paid-late note was rejected; no marker recorded.', array(
+                'invoice_id' => $invoiceId,
+            ));
+            return;
+        }
+
+        $order->update_meta_data($marker, isset($event['event_id']) && is_scalar($event['event_id'])
+            ? (string) $event['event_id']
+            : '1');
     }
 
     /**

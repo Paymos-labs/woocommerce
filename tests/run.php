@@ -56,6 +56,7 @@ require __DIR__ . '/OrderMapperTest.php';
 require __DIR__ . '/WebhookControllerTest.php';
 require __DIR__ . '/ReconcilerTest.php';
 require __DIR__ . '/GatewayRenewalTest.php';
+require __DIR__ . '/PaidLateCallbackTest.php';
 
 $count = 0;
 

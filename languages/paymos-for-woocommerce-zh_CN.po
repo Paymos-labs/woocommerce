@@ -337,3 +337,7 @@ msgstr "Paymos 付款需要人工核对。"
 #: includes/Gateway.php:160
 msgid "The store needs to review this order before payment can continue. Please contact the store."
 msgstr "商家需要先审核这笔订单，之后才能继续付款。请联系商家。"
+
+#: includes/OrderMapper.php:305
+msgid "Paymos: the customer finished paying for this order after the invoice closed. Check stock, then fulfil the order manually or refund the payment."
+msgstr "Paymos：这笔订单在账单关闭后才付清。请核对库存，再手动完成订单或向买家退款。"

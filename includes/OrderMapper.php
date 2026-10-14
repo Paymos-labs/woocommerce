@@ -302,7 +302,7 @@ final class OrderMapper
             return;
         }
 
-        $note = __('Paymos: payment arrived after the invoice deadline and covered the full amount.', 'paymos-for-woocommerce');
+        $note = __('Paymos: the customer finished paying for this order after the invoice closed. Check stock, then fulfil the order manually or refund the payment.', 'paymos-for-woocommerce');
         $noteId = $order->add_order_note($note);
         if ($noteId === false || $noteId === 0) {
             // Note rejected (store error): no marker — the next delivery retries, nothing is blessed.

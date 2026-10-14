@@ -234,3 +234,7 @@ msgstr "Die Paymos-Zahlung muss von Hand geprüft werden."
 #: includes/Gateway.php:160
 msgid "The store needs to review this order before payment can continue. Please contact the store."
 msgstr "Bevor Sie weiter bezahlen können, muss der Shop diese Bestellung prüfen. Bitte wenden Sie sich an den Shop."
+
+#: includes/OrderMapper.php:305
+msgid "Paymos: the customer finished paying for this order after the invoice closed. Check stock, then fulfil the order manually or refund the payment."
+msgstr "Paymos: Die Zahlung für diese Bestellung ist vollständig, aber verspätet eingegangen. Prüfen Sie den Lagerbestand und liefern Sie die Bestellung von Hand aus — oder erstatten Sie den Betrag."

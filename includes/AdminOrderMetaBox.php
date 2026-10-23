@@ -58,7 +58,7 @@ final class AdminOrderMetaBox
         echo '</table>';
 
         $paymentUrl = self::meta($order, '_paymos_payment_url');
-        if ($paymentUrl !== '') {
+        if (CheckoutUrl::isTrusted($paymentUrl)) {
             echo '<p><a class="button button-secondary" target="_blank" rel="noopener noreferrer" href="' . esc_url($paymentUrl) . '">' . esc_html__('Open Paymos checkout', 'paymos-for-woocommerce') . '</a></p>';
         }
     }

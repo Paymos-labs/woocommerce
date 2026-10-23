@@ -148,8 +148,9 @@ function esc_attr($text)
     return htmlspecialchars((string) $text, ENT_QUOTES, 'UTF-8');
 }
 
-function apply_filters($hook, $value)
+function apply_filters($hook, $value, ...$args)
 {
+    foreach ($GLOBALS['paymos_filters'][$hook] ?? array() as $callback) { $value = $callback($value, ...$args); }
     return $value;
 }
 
@@ -193,6 +194,7 @@ if (!function_exists('register_activation_hook')) {
 if (!function_exists('add_filter')) {
     function add_filter($hook, $callback, $priority = 10, $acceptedArgs = 1)
     {
+        $GLOBALS['paymos_filters'][$hook][] = $callback;
         return true;
     }
 }
@@ -364,6 +366,7 @@ function paymos_reset_test_state()
     }
 
     unset($GLOBALS['paymos_test_wc_orders']);
+    $GLOBALS['wpdb'] = new FakeWpdb();
 }
 
 function paymos_store_credentials(array $environments)
@@ -418,3 +421,8 @@ function paymos_signed_header($secret, $body, $timestamp = 1709000000)
 {
     return 't=' . $timestamp . ',v1=' . hash_hmac('sha256', $timestamp . '.' . $body, $secret);
 }
+
+function remove_filter($hook, $callback, $priority = 10) { foreach ($GLOBALS['paymos_filters'][$hook] ?? array() as $i => $registered) { if ($registered === $callback) { unset($GLOBALS['paymos_filters'][$hook][$i]); } } return true; }
+function wp_unschedule_hook($hook) { $GLOBALS['paymos_cleared_hooks'][] = $hook; return 1; }
+
+function clean_post_cache($orderId) { $GLOBALS['paymos_cleaned_post_cache'][] = $orderId; }

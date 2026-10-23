@@ -17,6 +17,8 @@ final class RenewableFakeOrder
     /** @var array<int, array<int, string>> */
     public $statusUpdates = array();
 
+    public function get_data_store() { return new NativeOrderStoreFixture(); }
+    public function read_meta_data($force = false) {}
     public function get_id() { return 100; }
     public function get_order_key() { return 'wc_order_abc123'; }
     public function get_total() { return '100.00'; }
@@ -26,9 +28,11 @@ final class RenewableFakeOrder
     public function needs_payment() { return true; }
     public function update_meta_data($key, $value) { $this->meta[(string) $key] = $value; }
     public function get_meta($key, $single = true) { return array_key_exists((string) $key, $this->meta) ? $this->meta[(string) $key] : ''; }
-    public function update_status($status, $note = '') { $this->statusUpdates[] = array($status, $note); }
+    public function update_status($status, $note = '') { $this->statusUpdates[] = array($status, $note); return true; }
     public function add_order_note($note) { $this->notes[] = (string) $note; }
-    public function save() {}
+    public function save() { return 100; }
+    public function is_paid() { return false; }
+    public function get_status() { return $this->statusUpdates ? $this->statusUpdates[count($this->statusUpdates)-1][0] : 'pending'; }
 
     /** @var array<int, string> */
     public $notes = array();
@@ -96,9 +100,11 @@ function paymos_renewal_setup(RenewableFakeOrder $order, array $invoices, &$sent
 function paymos_renewal_order_with_invoice($status, $expiresAt = 0)
 {
     $order = new RenewableFakeOrder();
+    $order->update_meta_data('_paymos_environment', 'sandbox');
+    $order->update_meta_data('_paymos_project_id', 'prj_123');
     $order->update_meta_data('_paymos_invoice_id', 'inv_old');
     $order->update_meta_data('_paymos_external_order_id', 'wc_100_abc123');
-    $order->update_meta_data('_paymos_payment_url', 'https://checkout.paymos.test/inv_old');
+    $order->update_meta_data('_paymos_payment_url', 'https://checkout.paymos.io/inv_old');
     $order->update_meta_data('_paymos_invoice_amount', '100.00');
     $order->update_meta_data('_paymos_invoice_currency', 'USD');
     $order->update_meta_data('_paymos_last_status', $status);
@@ -116,13 +122,13 @@ function test_gateway_renews_the_invoice_of_a_failed_order()
     // the stored id answers with the live invoice) before a new id is minted.
     $order = paymos_renewal_order_with_invoice('underpaid');
     paymos_renewal_setup($order, array(
-        array('invoice_id' => 'inv_old', 'status' => 'underpaid', 'is_final' => true, 'payment_url' => 'https://checkout.paymos.test/inv_old'),
-        array('invoice_id' => 'inv_fresh', 'status' => 'awaiting_client', 'payment_url' => 'https://checkout.paymos.test/inv_fresh', 'expires_at' => time() + 1800),
+        array('invoice_id' => 'inv_old', 'status' => 'underpaid', 'is_final' => true, 'payment_url' => 'https://checkout.paymos.io/inv_old'),
+        array('invoice_id' => 'inv_fresh', 'status' => 'awaiting_client', 'payment_url' => 'https://checkout.paymos.io/inv_fresh', 'expires_at' => time() + 1800),
     ), $sent);
 
     $result = (new Gateway())->process_payment(100);
 
-    assertSameValue('https://checkout.paymos.test/inv_fresh', $result['redirect'], 'a failed order must be sent to a fresh invoice.');
+    assertSameValue('https://checkout.paymos.io/inv_fresh', $result['redirect'], 'a failed order must be sent to a fresh invoice.');
     assertSameValue(2, count($sent), 'the server confirms the old invoice ended, then a fresh one is cut.');
     assertSameValue('wc_100_abc123', $sent[0]['external_order_id'], 'the first call asks the server about the stored id.');
     assertTrueValue($sent[1]['external_order_id'] !== 'wc_100_abc123', 'the fresh invoice needs a new external order id — the old one answers with the final invoice.');
@@ -135,8 +141,8 @@ function test_gateway_renews_when_the_server_returns_the_old_invoice_already_exp
     // but the server answers the repeated id with an expired invoice.
     $order = paymos_renewal_order_with_invoice('awaiting_client');
     paymos_renewal_setup($order, array(
-        array('invoice_id' => 'inv_old', 'status' => 'expired', 'is_final' => true, 'payment_url' => 'https://checkout.paymos.test/inv_old'),
-        array('invoice_id' => 'inv_fresh', 'status' => 'awaiting_client', 'payment_url' => 'https://checkout.paymos.test/inv_fresh'),
+        array('invoice_id' => 'inv_old', 'status' => 'expired', 'is_final' => true, 'payment_url' => 'https://checkout.paymos.io/inv_old'),
+        array('invoice_id' => 'inv_fresh', 'status' => 'awaiting_client', 'payment_url' => 'https://checkout.paymos.io/inv_fresh'),
     ), $sent);
 
     $result = (new Gateway())->process_payment(100);
@@ -144,7 +150,7 @@ function test_gateway_renews_when_the_server_returns_the_old_invoice_already_exp
     assertSameValue(2, count($sent), 'the reused id is tried first, then a fresh invoice is cut.');
     assertSameValue('wc_100_abc123', $sent[0]['external_order_id'], 'the first call reuses the stored id.');
     assertTrueValue($sent[1]['external_order_id'] !== 'wc_100_abc123', 'the second call must carry a new id.');
-    assertSameValue('https://checkout.paymos.test/inv_fresh', $result['redirect'], 'the buyer must land on the fresh invoice.');
+    assertSameValue('https://checkout.paymos.io/inv_fresh', $result['redirect'], 'the buyer must land on the fresh invoice.');
     assertSameValue('inv_fresh', $order->meta['_paymos_invoice_id'], 'the order must point at the fresh invoice.');
 }
 
@@ -152,14 +158,14 @@ function test_gateway_keeps_an_open_invoice()
 {
     $order = paymos_renewal_order_with_invoice('awaiting_client', time() + 600);
     paymos_renewal_setup($order, array(
-        array('invoice_id' => 'inv_old', 'status' => 'awaiting_client', 'payment_url' => 'https://checkout.paymos.test/inv_old', 'expires_at' => time() + 600),
+        array('invoice_id' => 'inv_old', 'status' => 'awaiting_client', 'payment_url' => 'https://checkout.paymos.io/inv_old', 'expires_at' => time() + 600),
     ), $sent);
 
     $result = (new Gateway())->process_payment(100);
 
     assertSameValue(1, count($sent), 'an open invoice needs one idempotent call.');
     assertSameValue('wc_100_abc123', $sent[0]['external_order_id'], 'an open invoice keeps its id.');
-    assertSameValue('https://checkout.paymos.test/inv_old', $result['redirect'], 'the buyer returns to the open invoice.');
+    assertSameValue('https://checkout.paymos.io/inv_old', $result['redirect'], 'the buyer returns to the open invoice.');
 }
 
 function test_my_account_pay_action_does_not_link_to_a_dead_invoice()
@@ -188,15 +194,15 @@ function test_gateway_asks_the_server_before_replacing_an_invoice_past_its_local
     $order = paymos_renewal_order_with_invoice('awaiting_client', time() - 3600);
     $extended = time() + 1500;
     paymos_renewal_setup($order, array(
-        array('invoice_id' => 'inv_old', 'status' => 'awaiting_payment', 'is_final' => false, 'payment_url' => 'https://checkout.paymos.test/inv_old', 'expires_at' => $extended),
-        array('invoice_id' => 'inv_second', 'status' => 'awaiting_client', 'payment_url' => 'https://checkout.paymos.test/inv_second'),
+        array('invoice_id' => 'inv_old', 'status' => 'awaiting_payment', 'is_final' => false, 'payment_url' => 'https://checkout.paymos.io/inv_old', 'expires_at' => $extended),
+        array('invoice_id' => 'inv_second', 'status' => 'awaiting_client', 'payment_url' => 'https://checkout.paymos.io/inv_second'),
     ), $sent);
 
     $result = (new Gateway())->process_payment(100);
 
     assertSameValue(1, count($sent), 'one call: the server says the invoice is open, so nothing new is cut.');
     assertSameValue('wc_100_abc123', $sent[0]['external_order_id'], 'a past local deadline must not mint a new id before the server is asked.');
-    assertSameValue('https://checkout.paymos.test/inv_old', $result['redirect'], 'the buyer returns to the invoice they already started.');
+    assertSameValue('https://checkout.paymos.io/inv_old', $result['redirect'], 'the buyer returns to the invoice they already started.');
     assertSameValue('inv_old', $order->meta['_paymos_invoice_id'], 'the order keeps its invoice.');
     assertSameValue('wc_100_abc123', $order->meta['_paymos_external_order_id'], 'the order keeps its external order id.');
     assertSameValue('awaiting_payment', $order->meta['_paymos_last_status'], 'the status is refreshed from the server.');
@@ -210,15 +216,15 @@ function test_gateway_keeps_an_invoice_the_server_holds_in_confirming_or_part_pa
     foreach (array('confirming', 'underpaid_waiting') as $status) {
         $order = paymos_renewal_order_with_invoice('awaiting_client', time() - 3600);
         paymos_renewal_setup($order, array(
-            array('invoice_id' => 'inv_old', 'status' => $status, 'is_final' => false, 'payment_url' => 'https://checkout.paymos.test/inv_old', 'expires_at' => time() - 600),
-            array('invoice_id' => 'inv_second', 'status' => 'awaiting_client', 'payment_url' => 'https://checkout.paymos.test/inv_second'),
+            array('invoice_id' => 'inv_old', 'status' => $status, 'is_final' => false, 'payment_url' => 'https://checkout.paymos.io/inv_old', 'expires_at' => time() - 600),
+            array('invoice_id' => 'inv_second', 'status' => 'awaiting_client', 'payment_url' => 'https://checkout.paymos.io/inv_second'),
         ), $sent);
 
         $result = (new Gateway())->process_payment(100);
 
         assertSameValue(1, count($sent), $status . ': the open invoice needs one idempotent call and no second invoice.');
         assertSameValue('wc_100_abc123', $sent[0]['external_order_id'], $status . ': the stored id is reused.');
-        assertSameValue('https://checkout.paymos.test/inv_old', $result['redirect'], $status . ': the buyer returns to the same invoice.');
+        assertSameValue('https://checkout.paymos.io/inv_old', $result['redirect'], $status . ': the buyer returns to the same invoice.');
     }
 }
 
@@ -226,8 +232,8 @@ function test_gateway_renews_past_the_local_deadline_only_once_the_server_says_e
 {
     $order = paymos_renewal_order_with_invoice('awaiting_client', time() - 3600);
     paymos_renewal_setup($order, array(
-        array('invoice_id' => 'inv_old', 'status' => 'expired', 'is_final' => true, 'payment_url' => 'https://checkout.paymos.test/inv_old', 'expires_at' => time() - 3600),
-        array('invoice_id' => 'inv_fresh', 'status' => 'awaiting_client', 'payment_url' => 'https://checkout.paymos.test/inv_fresh', 'expires_at' => time() + 1800),
+        array('invoice_id' => 'inv_old', 'status' => 'expired', 'is_final' => true, 'payment_url' => 'https://checkout.paymos.io/inv_old', 'expires_at' => time() - 3600),
+        array('invoice_id' => 'inv_fresh', 'status' => 'awaiting_client', 'payment_url' => 'https://checkout.paymos.io/inv_fresh', 'expires_at' => time() + 1800),
     ), $sent);
 
     $result = (new Gateway())->process_payment(100);
@@ -235,7 +241,7 @@ function test_gateway_renews_past_the_local_deadline_only_once_the_server_says_e
     assertSameValue(2, count($sent), 'the server is asked first, then a fresh invoice is cut.');
     assertSameValue('wc_100_abc123', $sent[0]['external_order_id'], 'the first call carries the stored id.');
     assertTrueValue($sent[1]['external_order_id'] !== 'wc_100_abc123', 'the replacement carries a new id.');
-    assertSameValue('https://checkout.paymos.test/inv_fresh', $result['redirect'], 'the buyer lands on the fresh invoice.');
+    assertSameValue('https://checkout.paymos.io/inv_fresh', $result['redirect'], 'the buyer lands on the fresh invoice.');
 }
 
 function test_gateway_cuts_a_fresh_id_when_the_stored_one_belongs_to_another_environment()
@@ -251,14 +257,14 @@ function test_gateway_cuts_a_fresh_id_when_the_stored_one_belongs_to_another_env
     paymos_replacement_setup($order, array(
         'cancel' => array(paymos_replacement_problem(409, 'invoice_cannot_be_cancelled')),
         'get' => array(array(200, array('invoice_id' => 'inv_old', 'status' => 'expired', 'is_final' => true))),
-        'create' => array(array(201, array('invoice_id' => 'inv_fresh', 'status' => 'awaiting_client', 'payment_url' => 'https://checkout.paymos.test/inv_fresh', 'expires_at' => time() + 1800))),
+        'create' => array(array(201, array('invoice_id' => 'inv_fresh', 'status' => 'awaiting_client', 'payment_url' => 'https://checkout.paymos.io/inv_fresh', 'expires_at' => time() + 1800))),
     ), $calls, paymos_replacement_both_environments());
 
     $result = (new Gateway())->process_payment(100);
 
     assertSameValue(array('POST /v1/invoices/inv_old/cancel pk_live', 'GET /v1/invoices/inv_old pk_live', 'POST /v1/invoices pk_test'), $calls, 'the live invoice is closed in live; only the create goes to the active environment.');
     assertTrueValue($order->meta['_paymos_external_order_id'] !== 'wc_100_abc123', 'a new id is cut for the active environment.');
-    assertSameValue('https://checkout.paymos.test/inv_fresh', $result['redirect'], 'the buyer lands on the invoice of the active environment.');
+    assertSameValue('https://checkout.paymos.io/inv_fresh', $result['redirect'], 'the buyer lands on the invoice of the active environment.');
     assertSameValue('sandbox', $order->meta['_paymos_environment'], 'the order now points at the active environment.');
 }
 
@@ -357,13 +363,13 @@ function test_gateway_cancels_the_old_invoice_before_replacing_it_for_a_changed_
     $order = paymos_replacement_changed_order();
     paymos_replacement_setup($order, array(
         'cancel' => array(array(200, array('invoice_id' => 'inv_old', 'status' => 'cancelled', 'is_final' => true))),
-        'create' => array(array(201, array('invoice_id' => 'inv_fresh', 'status' => 'awaiting_client', 'payment_url' => 'https://checkout.paymos.test/inv_fresh'))),
+        'create' => array(array(201, array('invoice_id' => 'inv_fresh', 'status' => 'awaiting_client', 'payment_url' => 'https://checkout.paymos.io/inv_fresh'))),
     ), $calls);
 
     $result = (new Gateway())->process_payment(100);
 
     assertSameValue(array('POST /v1/invoices/inv_old/cancel pk_test', 'POST /v1/invoices pk_test'), $calls, 'the old invoice is cancelled before the new one is created.');
-    assertSameValue('https://checkout.paymos.test/inv_fresh', $result['redirect'], 'the buyer lands on the new invoice.');
+    assertSameValue('https://checkout.paymos.io/inv_fresh', $result['redirect'], 'the buyer lands on the new invoice.');
     assertSameValue('inv_fresh', $order->meta['_paymos_invoice_id'], 'the order points at the new invoice.');
 }
 
@@ -412,8 +418,8 @@ function test_gateway_cancels_an_unstarted_invoice_past_its_deadline_before_repl
     $order = paymos_renewal_order_with_invoice('awaiting_client', time() - 3600);
     paymos_replacement_setup($order, array(
         'create' => array(
-            array(200, array('invoice_id' => 'inv_old', 'status' => 'awaiting_client', 'is_final' => false, 'payment_url' => 'https://checkout.paymos.test/inv_old', 'expires_at' => time() - 3600)),
-            array(201, array('invoice_id' => 'inv_fresh', 'status' => 'awaiting_client', 'payment_url' => 'https://checkout.paymos.test/inv_fresh')),
+            array(200, array('invoice_id' => 'inv_old', 'status' => 'awaiting_client', 'is_final' => false, 'payment_url' => 'https://checkout.paymos.io/inv_old', 'expires_at' => time() - 3600)),
+            array(201, array('invoice_id' => 'inv_fresh', 'status' => 'awaiting_client', 'payment_url' => 'https://checkout.paymos.io/inv_fresh')),
         ),
         'cancel' => array(array(200, array('invoice_id' => 'inv_old', 'status' => 'cancelled', 'is_final' => true))),
     ), $calls);
@@ -421,7 +427,7 @@ function test_gateway_cancels_an_unstarted_invoice_past_its_deadline_before_repl
     $result = (new Gateway())->process_payment(100);
 
     assertSameValue(array('POST /v1/invoices pk_test', 'POST /v1/invoices/inv_old/cancel pk_test', 'POST /v1/invoices pk_test'), $calls, 'read (idempotent create), cancel, create.');
-    assertSameValue('https://checkout.paymos.test/inv_fresh', $result['redirect'], 'the buyer lands on the new invoice.');
+    assertSameValue('https://checkout.paymos.io/inv_fresh', $result['redirect'], 'the buyer lands on the new invoice.');
 }
 
 function test_gateway_cancels_the_old_invoice_in_its_own_environment()
@@ -433,7 +439,7 @@ function test_gateway_cancels_the_old_invoice_in_its_own_environment()
     $order->update_meta_data('_paymos_project_id', 'prj_123');
     paymos_replacement_setup($order, array(
         'cancel' => array(array(200, array('invoice_id' => 'inv_old', 'status' => 'cancelled', 'is_final' => true))),
-        'create' => array(array(201, array('invoice_id' => 'inv_live', 'status' => 'awaiting_client', 'payment_url' => 'https://checkout.paymos.test/inv_live'))),
+        'create' => array(array(201, array('invoice_id' => 'inv_live', 'status' => 'awaiting_client', 'payment_url' => 'https://checkout.paymos.io/inv_live'))),
     ), $calls, paymos_replacement_both_environments());
     update_option('woocommerce_paymos_settings', array('mode' => 'live', 'enabled' => 'yes'));
     PaymosWooCommerce\Config::reset_cache();
@@ -441,7 +447,7 @@ function test_gateway_cancels_the_old_invoice_in_its_own_environment()
     $result = (new Gateway())->process_payment(100);
 
     assertSameValue(array('POST /v1/invoices/inv_old/cancel pk_test', 'POST /v1/invoices pk_live'), $calls, 'cancel with sandbox credentials, create with live.');
-    assertSameValue('https://checkout.paymos.test/inv_live', $result['redirect'], 'the buyer lands on the live invoice.');
+    assertSameValue('https://checkout.paymos.io/inv_live', $result['redirect'], 'the buyer lands on the live invoice.');
 }
 
 function test_gateway_blocked_replacement_names_the_real_reason_and_asks_the_buyer_to_contact_the_store()

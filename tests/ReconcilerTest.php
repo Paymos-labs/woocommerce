@@ -25,6 +25,7 @@ function test_reconciler_completes_unpaid_order_when_api_invoice_is_paid()
     $transport = new MockTransport(array(
         new HttpResponse(200, json_encode(array(
             'invoice_id' => 'inv_123',
+            'is_test' => true,
             'project_id' => 'prj_123',
             'status' => 'paid',
             'order' => array(
@@ -85,6 +86,7 @@ function test_reconciler_compares_snapshot_amounts_numerically()
     $order = paymos_reconcile_order('2500.00', 'JPY');
     $client = paymos_reconcile_client(array(array(
         'invoice_id' => 'inv_123',
+            'is_test' => true,
         'project_id' => 'prj_123',
         'status' => 'paid',
         'order' => array('external_id' => 'wc_100', 'amount' => '2500', 'currency' => 'JPY'),
@@ -118,6 +120,7 @@ function test_reconciler_adds_no_note_when_the_invoice_status_did_not_change()
     $order = paymos_reconcile_order('100.00', 'USD', 'confirming');
     $client = paymos_reconcile_client(array(array(
         'invoice_id' => 'inv_123',
+            'is_test' => true,
         'project_id' => 'prj_123',
         'status' => 'confirming',
         'order' => array('external_id' => 'wc_100', 'amount' => '100.00', 'currency' => 'USD'),
@@ -138,6 +141,7 @@ function test_reconciler_does_not_report_a_rollback_for_an_invoice_that_was_neve
     $order = paymos_reconcile_order('100.00', 'USD', 'awaiting_client');
     $client = paymos_reconcile_client(array(array(
         'invoice_id' => 'inv_123',
+            'is_test' => true,
         'project_id' => 'prj_123',
         'status' => 'awaiting_payment',
         'order' => array('external_id' => 'wc_100', 'amount' => '100.00', 'currency' => 'USD'),
@@ -173,6 +177,62 @@ if (!function_exists('wc_get_orders')) {
     function wc_get_orders(array $args)
     {
         $GLOBALS['paymos_wc_get_orders_calls'][] = $args;
-        return array();
+        if (!isset($GLOBALS['paymos_cursor_orders'])) { return array(); }
+        $cursor = isset($args['paymos_after_id']) ? (int) $args['paymos_after_id'] : 0;
+        if (($GLOBALS['paymos_cursor_backend'] ?? 'hpos') === 'hpos') {
+            $clauses = apply_filters('woocommerce_orders_table_query_clauses', array('where' => '1=1'), null, $args);
+            assertTrueValue(strpos($clauses['where'], 'id > ' . $cursor) !== false, 'HPOS cursor condition must reach WHERE before native LIMIT.');
+        } else {
+            $mapped = apply_filters('woocommerce_order_data_store_cpt_get_orders_query', array(), $args);
+            $q = new class($mapped) {
+                private $args;
+                public function __construct($args) { $this->args = $args; }
+                public function get($key, $default = null) { return $this->args[$key] ?? $default; }
+            };
+            $where = apply_filters('posts_where', '1=1', $q);
+            assertTrueValue(strpos($where, 'id > ' . $cursor) !== false, 'CPT cursor condition must reach WHERE before native LIMIT.');
+        }
+        $orders = array_filter($GLOBALS['paymos_cursor_orders'], static function ($order) use ($args, $cursor) {
+            return $order->get_id() > $cursor && in_array($order->get_status(), $args['status'], true);
+        });
+        usort($orders, static function ($a, $b) { return $a->get_id() <=> $b->get_id(); });
+        return array_slice($orders, 0, $args['limit']);
     }
+}
+
+function test_reconciler_cursor_visits_every_order_and_wraps_for_hpos_and_legacy()
+{
+    foreach (array('hpos', 'cpt') as $backend) {
+        paymos_reset_test_state();
+        $pool = array();
+        for ($i = 1; $i <= 125; $i++) { $pool[] = new FakeOrder('100', 'USD', $i); }
+        $GLOBALS['paymos_test_wc_orders'] = $pool;
+        $GLOBALS['paymos_cursor_orders'] = $pool;
+        $GLOBALS['paymos_cursor_backend'] = $backend;
+        Reconciler::run();
+        assertSameValue(50, get_option('paymos_woocommerce_reconcile_waiting_cursor'), 'First bounded page advances past skipped/no-invoice orders.');
+        Reconciler::run();
+        assertSameValue(100, get_option('paymos_woocommerce_reconcile_waiting_cursor'), 'Second tick visits next 50 despite permanent first page.');
+        Reconciler::run();
+        assertSameValue(125, get_option('paymos_woocommerce_reconcile_waiting_cursor'), 'Oldest and newest each eventually scanned.');
+        Reconciler::run();
+        assertSameValue(50, get_option('paymos_woocommerce_reconcile_waiting_cursor'), 'Exhausted cursor wraps once and reattempts beginning.');
+        unset($GLOBALS['paymos_cursor_orders'], $GLOBALS['paymos_cursor_backend']);
+    }
+}
+
+function test_reconciler_requires_environment_snapshot_and_uses_canonical_paid_over_event()
+{
+    paymos_reset_test_state();
+    $order = paymos_reconcile_order();
+    unset($order->meta['_paymos_environment']);
+    $data = array('invoice_id' => 'inv_123', 'project_id' => 'prj_123', 'is_test' => false, 'status' => 'paid_over', 'order' => array('external_id' => 'wc_100', 'amount' => '100', 'currency' => 'USD'));
+    $client = paymos_reconcile_client(array($data));
+    assertSameValue(0, Reconciler::reconcile_orders(array($order), static function () use ($client) { return $client; }), 'Missing environment never defaults into live completion.');
+    assertSameValue(false, $order->paid, 'Missing environment requires manual review.');
+    $order->update_meta_data('_paymos_environment', 'sandbox');
+    $data['is_test'] = true;
+    $client = paymos_reconcile_client(array($data));
+    assertSameValue(1, Reconciler::reconcile_orders(array($order), static function () use ($client) { return $client; }), 'Valid paid_over recovers.');
+    assertSameValue('invoice.paid_over', $order->get_meta('_paymos_last_event_type'), 'Synthesized event uses canonical server contract.');
 }

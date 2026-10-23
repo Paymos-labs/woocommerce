@@ -90,12 +90,32 @@ final class Gateway extends \WC_Payment_Gateway
 
     public function process_payment($order_id)
     {
-        $order = wc_get_order($order_id);
+        $lock = new \Paymos\Plugin\WordPressOrderLock('woocommerce', $order_id);
+        try {
+            if (!$lock->acquire()) {
+                throw new \RuntimeException('Paymos Woo order is busy.');
+            }
+            return $this->processPaymentOwned($order_id, $lock);
+        } catch (\Throwable $e) {
+            Logger::error('Paymos checkout failed: ' . $e->getMessage(), array('order_id' => $order_id));
+            wc_add_notice(__('Paymos payment error: unable to create invoice.', 'paymos-for-woocommerce'), 'error');
+            return array('result' => 'failure');
+        } finally {
+            $lock->release();
+        }
+    }
+
+    private function processPaymentOwned($order_id, $lock)
+    {
+        $order = FreshOrder::load($order_id, $lock);
         if (!$order) {
             wc_add_notice(__('Paymos payment error: order not found.', 'paymos-for-woocommerce'), 'error');
             return array('result' => 'failure');
         }
 
+        if ($order->is_paid() || $order->get_status() === 'refunded') {
+            return array('result' => 'failure');
+        }
         try {
             $environment = Config::mode();
             $config = $this->activeEnvironmentConfig($environment);
@@ -113,37 +133,57 @@ final class Gateway extends \WC_Payment_Gateway
                 $payload['client_id'] = $clientId;
             }
 
-            // A new id replaces the stored invoice (another amount, environment
-            // or project): close that one on the server first (BUG-166).
             $storedExternalOrderId = $this->storedExternalOrderId($order);
-            if ($storedExternalOrderId !== '' && $externalOrderId !== $storedExternalOrderId) {
-                $storedEnvironment = (string) $order->get_meta('_paymos_environment', true);
-                // The order meta's last status may predate the stored invoice on
-                // orders from older versions, so the server is always asked here.
-                $this->closeBeforeReplacing(
-                    (string) $order->get_meta('_paymos_invoice_id', true),
-                    $storedEnvironment !== '' ? $storedEnvironment : $environment,
-                    ''
-                );
+            $pending = (string) $order->get_meta('_paymos_creation_intent', true) === 'pending';
+            if ($pending) {
+                // A lost response may have created a payable invoice. Learn it by
+                // replaying the exact durable POST before considering replacement.
+                $same = CreationIntent::matches($order, $payload, $environment);
+                $oldEnvironment = (string) $order->get_meta('_paymos_environment', true);
+                $invoice = CreationIntent::recover($order, $lock, $this->client($this->activeEnvironmentConfig($oldEnvironment)));
+                if ($same) {
+                    $payload = CreationIntent::payload($order);
+                    $externalOrderId = $payload['external_order_id'];
+                } else {
+                    $this->closeBeforeReplacing((string) $order->get_meta('_paymos_invoice_id', true), $oldEnvironment, '');
+                    $lock->assertOwned();
+                    $externalOrderId = $this->freshExternalOrderId($order);
+                    $payload['external_order_id'] = $externalOrderId;
+                    CreationIntent::persist($order, $payload, $environment, $lock);
+                    $invoice = $this->client($config)->invoices()->create($payload);
+                }
+            } else {
+                if ($storedExternalOrderId !== '' && $externalOrderId !== $storedExternalOrderId) {
+                    $storedEnvironment = (string) $order->get_meta('_paymos_environment', true);
+                    $this->closeBeforeReplacing((string) $order->get_meta('_paymos_invoice_id', true), $storedEnvironment, '');
+                }
+                $lock->assertOwned();
+                if ($externalOrderId !== $storedExternalOrderId || $storedExternalOrderId === '') {
+                    CreationIntent::persist($order, $payload, $environment, $lock);
+                } elseif (!is_array($order->get_meta('_paymos_creation_payload', true))) {
+                    // Existing releases already have a bound invoice; record the
+                    // exact retry payload without clearing its independent ID.
+                    $order->update_meta_data('_paymos_creation_payload', $payload);
+                    $order->update_meta_data('_paymos_client_id', isset($payload['client_id']) ? $payload['client_id'] : '');
+                    if (!$order->save()) { throw new \RuntimeException('Woo invoice intent save failed.'); }
+                } else {
+                    $payload = CreationIntent::payload($order);
+                }
+                $invoice = $this->client($config)->invoices()->create($payload);
             }
 
-            $invoice = $this->client($config)->invoices()->create($payload);
-
-            // The server answers a repeated external_order_id with the invoice it
-            // already made, whatever became of it — so this call is also the read
-            // of the live invoice, and the only thing allowed to decide that it
-            // is replaced. If it can no longer be paid (it ended unpaid, or
-            // nobody started it before the deadline) cut a fresh one. An invoice
-            // the server still holds open is kept, whatever the order meta says.
+            // The repeated POST returns the old invoice. Renew only after the
+            // server and replacement guard prove that it ended unpaid.
             if ($externalOrderId === $storedExternalOrderId && InvoiceRenewal::isRequired($invoice)) {
-                // The status is the server's own answer for the stored id.
                 $this->closeBeforeReplacing(
                     isset($invoice['invoice_id']) && is_scalar($invoice['invoice_id']) ? (string) $invoice['invoice_id'] : '',
                     $environment,
                     isset($invoice['status']) && is_scalar($invoice['status']) ? (string) $invoice['status'] : ''
                 );
+                $lock->assertOwned();
                 $externalOrderId = $this->freshExternalOrderId($order);
                 $payload['external_order_id'] = $externalOrderId;
+                CreationIntent::persist($order, $payload, $environment, $lock);
                 $invoice = $this->client($config)->invoices()->create($payload);
             }
         } catch (InvoiceReplacementBlockedException $e) {
@@ -154,6 +194,7 @@ final class Gateway extends \WC_Payment_Gateway
             // or pay another way (BUG-181). The notice is the SDK's
             // InvoiceReplacementBlockedException message, spelled out so the
             // string extractor sees it.
+            $lock->assertOwned();
             Logger::error('Paymos invoice was not replaced: ' . $e->result()->summary(), array('order_id' => $order_id));
             $order->update_status('on-hold');
             $order->add_order_note(__('Paymos payment needs manual review.', 'paymos-for-woocommerce') . ' ' . $e->result()->summary());
@@ -169,15 +210,16 @@ final class Gateway extends \WC_Payment_Gateway
             return array('result' => 'failure');
         }
 
+        $lock->assertOwned();
         $invoiceId = isset($invoice['invoice_id']) ? (string) $invoice['invoice_id'] : '';
         $paymentUrl = isset($invoice['payment_url']) ? (string) $invoice['payment_url'] : '';
 
-        if ($invoiceId === '' || $paymentUrl === '') {
+        if ($invoiceId === '' || !CheckoutUrl::isTrusted($paymentUrl)) {
             wc_add_notice(__('Paymos payment error: invalid invoice response.', 'paymos-for-woocommerce'), 'error');
             return array('result' => 'failure');
         }
 
-        $order->update_meta_data('_paymos_invoice_id', $invoiceId);
+        CreationIntent::bind($order, $invoice, $lock);
         $order->update_meta_data('_paymos_external_order_id', $externalOrderId);
         $order->update_meta_data('_paymos_payment_url', $paymentUrl);
         $order->update_meta_data('_paymos_environment', $environment);
@@ -193,8 +235,12 @@ final class Gateway extends \WC_Payment_Gateway
         // on every read of the invoice, and never decides a renewal by itself.
         $order->update_meta_data('_paymos_expires_at', isset($invoice['expires_at']) && is_numeric($invoice['expires_at']) ? (string) (int) $invoice['expires_at'] : '');
         OrderAmountGuard::capture($order, $order->get_total(), $order->get_currency());
-        $order->update_status('on-hold', __('Awaiting Paymos payment.', 'paymos-for-woocommerce'));
-        $order->save();
+        if ($order->update_status('on-hold', __('Awaiting Paymos payment.', 'paymos-for-woocommerce')) !== true || $order->get_status() !== 'on-hold') {
+            throw new \RuntimeException('Woo order status transition failed.');
+        }
+        if (!$order->save()) {
+            throw new \RuntimeException('Woo order save failed.');
+        }
 
         Logger::info('Paymos invoice created.', array(
             'order_id' => (string) $order_id,
@@ -279,6 +325,7 @@ final class Gateway extends \WC_Payment_Gateway
         }))->close($invoiceId, $recordedStatus);
 
         if (!$result->isClosed()) {
+            // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Typed result object is stored internally; the exception's public message is static, not HTML output.
             throw new InvoiceReplacementBlockedException($result);
         }
     }
@@ -343,8 +390,7 @@ final class Gateway extends \WC_Payment_Gateway
         $storedEnvironment = (string) $order->get_meta('_paymos_environment', true);
         $storedProjectId = (string) $order->get_meta('_paymos_project_id', true);
 
-        return ($storedEnvironment === '' || $storedEnvironment === (string) $environment)
-            && ($storedProjectId === '' || $storedProjectId === (string) $projectId);
+        return $storedEnvironment === (string) $environment && $storedProjectId === (string) $projectId;
     }
 
     private function storedExternalOrderId($order)

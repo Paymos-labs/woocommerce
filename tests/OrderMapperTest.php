@@ -4,10 +4,20 @@ declare(strict_types=1);
 
 use PaymosWooCommerce\OrderMapper;
 
-final class FakeOrder
+final class NativeOrderStoreFixture
+{
+    public function has_callable($method) { return false; }
+    public function read($order) {}
+}
+
+class FakeOrder
 {
     /** @var bool */
     public $paid = false;
+    public $completionResult = true;
+    public $transitionResult = true;
+    public $completionCalls = 0;
+    private $id;
 
     /** @var array<int, array<int, string>> */
     public $statusUpdates = array();
@@ -27,11 +37,22 @@ final class FakeOrder
     /** @var string */
     private $currency;
 
-    public function __construct($total = '100.00', $currency = 'USD')
+    public function __construct($total = '100.00', $currency = 'USD', $id = 100)
     {
+        $this->id = $id;
         $this->total = (string) $total;
         $this->currency = (string) $currency;
+        $GLOBALS['paymos_test_wc_orders'] = array($this);
     }
+
+    public function get_data_store() { return new NativeOrderStoreFixture(); }
+    public function read_meta_data($force = false) {}
+
+    public function get_order_key() { return 'wc_order_abc123'; }
+    public function get_customer_id() { return 7; }
+    public function get_id() { return $this->id; }
+    public function set_total($total) { $this->total = $total; }
+    public function get_status() { return $this->paid ? 'processing' : ($this->statusUpdates ? $this->statusUpdates[count($this->statusUpdates)-1][0] : 'pending'); }
 
     public function is_paid()
     {
@@ -40,13 +61,18 @@ final class FakeOrder
 
     public function update_status($status, $note)
     {
+        if (!$this->transitionResult) { return false; }
         $this->statusUpdates[] = array($status, $note);
+        return true;
     }
 
     public function payment_complete($transactionId = '')
     {
+        $this->completionCalls++;
+        if (!$this->completionResult) { return false; }
         $this->paid = true;
         $this->transactionId = (string) $transactionId;
+        return true;
     }
 
     public function add_order_note($note)
@@ -76,6 +102,7 @@ final class FakeOrder
 
     public function save()
     {
+        return $this->get_id();
     }
 }
 

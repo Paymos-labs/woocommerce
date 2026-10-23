@@ -23,10 +23,10 @@ final class OrderAmountGuard
         $savedCurrency = strtoupper(self::meta($order, '_paymos_invoice_currency'));
 
         if ($savedAmount === '' || $savedCurrency === '') {
-            return true;
+            return false;
         }
 
-        return $savedAmount === self::formatAmount($order->get_total())
+        return AmountGuard::amountsEqual($savedAmount, self::formatAmount($order->get_total()))
             && $savedCurrency === strtoupper((string) $order->get_currency());
     }
 
@@ -39,7 +39,7 @@ final class OrderAmountGuard
         $savedCurrency = strtoupper(self::meta($order, '_paymos_invoice_currency'));
 
         if ($savedAmount === '' || $savedCurrency === '') {
-            return true;
+            return false;
         }
 
         return AmountGuard::isSafeToComplete(
@@ -76,11 +76,11 @@ final class OrderAmountGuard
 
     public static function formatAmount($amount)
     {
-        if (function_exists('wc_format_decimal')) {
-            return wc_format_decimal($amount, 2, false);
+        $normalized = AmountGuard::normalizeDecimal($amount);
+        if ($normalized === null || $normalized === '0' || $normalized[0] === '-') {
+            throw new \RuntimeException('Paymos order amount is invalid.');
         }
-
-        return number_format((float) $amount, 2, '.', '');
+        return $normalized;
     }
 
     private static function meta($order, $key)

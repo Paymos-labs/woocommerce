@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace PaymosWooCommerce;
 
 use Paymos\Plugin\StatusMapper;
+use Paymos\Plugin\WordPressOrderLock;
 
 defined('ABSPATH') || exit;
 
@@ -17,12 +18,37 @@ final class OrderMapper
      *                            from a fetched invoice rather than delivered as a
      *                            webhook (see awaitingPaymentNote()).
      */
-    public function apply($order, array $event, $fromReconcile = false)
+    public function apply($order, array $event, $fromReconcile = false, $ownedLock = null)
+    {
+        if ($ownedLock !== null) {
+            $ownedLock->assertOwned();
+            return $this->applyOwned($order, $event, $fromReconcile);
+        }
+        $lock = new WordPressOrderLock('woocommerce', $order->get_id());
+        if (!$lock->acquire()) {
+            throw new \RuntimeException('Paymos Woo order is busy.');
+        }
+        try {
+            $fresh = FreshOrder::load($order->get_id(), $lock);
+            if (!$fresh) {
+                throw new \RuntimeException('Woo order was not found.');
+            }
+            $lock->assertOwned();
+            return $this->applyOwned($fresh, $event, $fromReconcile);
+        } finally {
+            $lock->release();
+        }
+    }
+
+    private function applyOwned($order, array $event, $fromReconcile)
     {
         $eventType = isset($event['event_type']) ? (string) $event['event_type'] : '';
         // Read before recordEvent(): the status this order already reached for
         // its current invoice.
         $previousStatus = method_exists($order, 'get_meta') ? (string) $order->get_meta('_paymos_last_status', true) : '';
+        if (in_array($order->get_status(), array('refunded'), true)) {
+            return;
+        }
         $this->recordEvent($order, $event, $eventType);
 
         $status = isset($event['data']['status']) && is_scalar($event['data']['status'])
@@ -46,11 +72,12 @@ final class OrderMapper
             return;
         }
 
-        // Nothing leaves a final status on the server (Invoice.IsTerminal), so an
+        // An unapplied paid observation may retry completion after mismatch/native failure.
+        // Other final decisions never accept an out-of-order state. An
         // event that arrives after one is an out-of-order redelivery. Guarding only
         // paid orders let a late underpaid_waiting pull a failed order back on
         // hold — and re-reserve its stock. The final status stays recorded.
-        if (StatusMapper::isFinalStatus($previousStatus)) {
+        if (StatusMapper::isFinalStatus($previousStatus) && (!in_array($previousStatus, array('paid', 'paid_over'), true) || $action !== StatusMapper::ACTION_PAYMENT_COMPLETE)) {
             Logger::info('Paymos ignored an invoice status that arrived after a final one.', array(
                 'final_status' => $previousStatus,
                 'event_type' => $eventType,
@@ -59,12 +86,10 @@ final class OrderMapper
             return;
         }
 
-        $this->recordStatus($order, $event);
-
         switch ($action) {
             case StatusMapper::ACTION_CONFIRMING:
                 if (!$order->is_paid()) {
-                    $order->update_status('on-hold', __('Paymos payment is confirming.', 'paymos-for-woocommerce'));
+                    $this->transition($order, 'on-hold', __('Paymos payment is confirming.', 'paymos-for-woocommerce'));
                     $order->add_order_note(__('Paymos payment is confirming.', 'paymos-for-woocommerce'));
                 }
                 break;
@@ -75,15 +100,18 @@ final class OrderMapper
             case StatusMapper::ACTION_AWAITING_PAYMENT:
                 if (!$order->is_paid()) {
                     $note = $this->awaitingPaymentNote($event, $fromReconcile);
-                    $order->update_status('on-hold', $note);
+                    $this->transition($order, 'on-hold', $note);
                     $order->add_order_note($note);
                 }
                 break;
 
             case StatusMapper::ACTION_PAYMENT_COMPLETE:
+                if ($order->is_paid()) {
+                    return;
+                }
                 if (!OrderAmountGuard::isSafeToComplete($order, $event)) {
                     $order->update_meta_data('_paymos_amount_mismatch', 'yes');
-                    $order->update_status('on-hold', __('Paymos payment amount needs manual review.', 'paymos-for-woocommerce'));
+                    $this->transition($order, 'on-hold', __('Paymos payment amount needs manual review.', 'paymos-for-woocommerce'));
                     $order->add_order_note(OrderAmountGuard::mismatchNote($order, $event));
                     $this->save($order);
                     break;
@@ -97,22 +125,37 @@ final class OrderMapper
                 if ($transfer['explorer_url'] !== '') {
                     $order->update_meta_data('_paymos_explorer_url', $transfer['explorer_url']);
                 }
-                $order->payment_complete($transfer['tx_hash'] !== '' ? $transfer['tx_hash'] : $this->fallbackTransactionId($event));
+                $completed = $order->payment_complete($transfer['tx_hash'] !== '' ? $transfer['tx_hash'] : $this->fallbackTransactionId($event));
+                if ($completed !== true || !$order->is_paid()) {
+                    throw new \RuntimeException('Woo payment completion failed.');
+                }
+                $this->recordStatus($order, $event);
+                $order->update_meta_data('_paymos_applied_paid_invoice_id', $this->fallbackTransactionId($event));
                 $order->add_order_note(__('Paymos payment completed.', 'paymos-for-woocommerce'));
                 break;
 
             case StatusMapper::ACTION_FAIL_ORDER:
-                $order->update_status('failed', __('Paymos invoice was underpaid.', 'paymos-for-woocommerce'));
+                $this->transition($order, 'failed', __('Paymos invoice was underpaid.', 'paymos-for-woocommerce'));
                 $order->add_order_note(__('Paymos invoice was underpaid.', 'paymos-for-woocommerce'));
                 break;
 
             case StatusMapper::ACTION_CANCEL_ORDER:
-                $order->update_status('cancelled', __('Paymos invoice was cancelled.', 'paymos-for-woocommerce'));
+                $this->transition($order, 'cancelled', __('Paymos invoice was cancelled.', 'paymos-for-woocommerce'));
                 $order->add_order_note(__('Paymos invoice was cancelled.', 'paymos-for-woocommerce'));
                 break;
         }
 
+        if ($action !== StatusMapper::ACTION_PAYMENT_COMPLETE) {
+            $this->recordStatus($order, $event);
+        }
         $this->save($order);
+    }
+
+    private function transition($order, $status, $note)
+    {
+        if ($order->update_status($status, $note) !== true || $order->get_status() !== $status) {
+            throw new \RuntimeException('Woo order status transition failed.');
+        }
     }
 
     /**
@@ -264,7 +307,9 @@ final class OrderMapper
     private function save($order)
     {
         if (method_exists($order, 'save')) {
-            $order->save();
+            if (!$order->save()) {
+                throw new \RuntimeException('Woo order save failed.');
+            }
         }
     }
 

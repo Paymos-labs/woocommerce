@@ -76,7 +76,8 @@ function wc_get_order($orderId)
         return false;
     }
 
-    return $GLOBALS['paymos_test_wc_orders'][0];
+    foreach ($GLOBALS['paymos_test_wc_orders'] as $order) { if ((int) $order->get_id() === (int) $orderId) { return $order; } }
+    return false;
 }
 
 function test_webhook_controller_rejects_paid_event_when_reverse_api_status_differs()
@@ -92,6 +93,7 @@ function test_webhook_controller_rejects_paid_event_when_reverse_api_status_diff
     ));
 
     $order = new FakeOrder('100.00', 'USD');
+    $order->update_meta_data('_paymos_invoice_id', 'inv_123');
     $order->update_meta_data('_paymos_external_order_id', 'wc_100');
     $order->update_meta_data('_paymos_environment', 'sandbox');
     $order->update_meta_data('_paymos_project_id', 'prj_123');
@@ -102,6 +104,7 @@ function test_webhook_controller_rejects_paid_event_when_reverse_api_status_diff
     $transport = new MockTransport(array(
         new HttpResponse(200, json_encode(array(
             'invoice_id' => 'inv_123',
+            'is_test' => true,
             'project_id' => 'prj_123',
             'status' => 'expired',
             'order' => array(
@@ -126,6 +129,7 @@ function test_webhook_controller_rejects_paid_event_when_reverse_api_status_diff
         'occurred_at' => $timestamp,
         'data' => array(
             'invoice_id' => 'inv_123',
+            'is_test' => true,
             'project_id' => 'prj_123',
             'status' => 'paid',
             'is_test' => true,
@@ -162,6 +166,7 @@ function test_webhook_controller_reverse_verifies_paid_event_before_completing_o
     ));
 
     $order = new FakeOrder('100.00', 'USD');
+    $order->update_meta_data('_paymos_invoice_id', 'inv_123');
     $order->update_meta_data('_paymos_external_order_id', 'wc_100');
     $order->update_meta_data('_paymos_environment', 'sandbox');
     $order->update_meta_data('_paymos_project_id', 'prj_123');
@@ -172,6 +177,7 @@ function test_webhook_controller_reverse_verifies_paid_event_before_completing_o
     $transport = new MockTransport(array(
         new HttpResponse(200, json_encode(array(
             'invoice_id' => 'inv_123',
+            'is_test' => true,
             'project_id' => 'prj_123',
             'status' => 'paid',
             'order' => array('external_id' => 'wc_100', 'amount' => '100.00', 'currency' => 'USD'),
@@ -192,6 +198,7 @@ function test_webhook_controller_reverse_verifies_paid_event_before_completing_o
         'occurred_at' => $timestamp,
         'data' => array(
             'invoice_id' => 'inv_123',
+            'is_test' => true,
             'project_id' => 'prj_123',
             'status' => 'paid',
             'is_test' => true,
@@ -225,6 +232,7 @@ function test_webhook_controller_does_not_commit_event_id_when_processing_fails(
     ));
 
     $order = new FakeOrder('100.00', 'USD');
+    $order->update_meta_data('_paymos_invoice_id', 'inv_123');
     $order->update_meta_data('_paymos_external_order_id', 'wc_100');
     $order->update_meta_data('_paymos_environment', 'sandbox');
     $order->update_meta_data('_paymos_project_id', 'prj_123');
@@ -240,6 +248,7 @@ function test_webhook_controller_does_not_commit_event_id_when_processing_fails(
         'occurred_at' => $timestamp,
         'data' => array(
             'invoice_id' => 'inv_123',
+            'is_test' => true,
             'project_id' => 'prj_123',
             'status' => 'paid',
             'is_test' => true,
@@ -251,6 +260,7 @@ function test_webhook_controller_does_not_commit_event_id_when_processing_fails(
     $badTransport = new MockTransport(array(
         new HttpResponse(200, json_encode(array(
             'invoice_id' => 'inv_123',
+            'is_test' => true,
             'project_id' => 'prj_123',
             'status' => 'expired',
             'order' => array('external_id' => 'wc_100', 'amount' => '100.00', 'currency' => 'USD'),
@@ -266,6 +276,7 @@ function test_webhook_controller_does_not_commit_event_id_when_processing_fails(
     $goodTransport = new MockTransport(array(
         new HttpResponse(200, json_encode(array(
             'invoice_id' => 'inv_123',
+            'is_test' => true,
             'project_id' => 'prj_123',
             'status' => 'paid',
             'order' => array('external_id' => 'wc_100', 'amount' => '100.00', 'currency' => 'USD'),
@@ -292,7 +303,7 @@ function test_webhook_controller_answers_409_while_the_event_is_still_being_proc
     global $wpdb;
 
     paymos_reset_test_state();
-    $wpdb = null;
+    $wpdb = new FakeWpdb();
     paymos_store_credentials(array(
         'sandbox' => array(
             'api_key' => 'pk_test_key',
@@ -302,8 +313,8 @@ function test_webhook_controller_answers_409_while_the_event_is_still_being_proc
             'base_url' => 'https://api.paymos.io',
         ),
     ));
-    $lockKey = 'paymos_evt_' . md5('evt_inflight') . '_lock';
-    set_transient($lockKey, '1', 300);
+    $first = new \PaymosWooCommerce\EventStore();
+    $first->remember('evt_inflight', 3600);
 
     $timestamp = time();
     $body = json_encode(array(
@@ -311,10 +322,11 @@ function test_webhook_controller_answers_409_while_the_event_is_still_being_proc
         'event_type' => 'invoice.paid',
         'version' => 1,
         'occurred_at' => $timestamp,
-        'data' => array('invoice_id' => 'inv_123', 'status' => 'paid', 'is_test' => true),
+        'data' => array('invoice_id' => 'inv_123',
+            'is_test' => true, 'status' => 'paid', 'is_test' => true),
     ));
     $response = WebhookController::handle(new FakeRestRequest($body, array('x-webhook-signature' => paymos_signed_header('whsec_test', $body, $timestamp))));
 
     assertSameValue(409, $response->get_status(), 'an event still in flight must be answered non-2xx so the server retries.');
-    assertSameValue('1', get_transient($lockKey), 'the retry must not release the lock the first attempt still holds.');
+    assertSameValue('processing', $wpdb->rows[md5('evt_inflight')]['status'], 'the retry must not release the lock the first attempt still holds.');
 }

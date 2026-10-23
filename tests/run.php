@@ -57,7 +57,9 @@ require __DIR__ . '/WebhookControllerTest.php';
 require __DIR__ . '/ReconcilerTest.php';
 require __DIR__ . '/GatewayRenewalTest.php';
 require __DIR__ . '/PaidLateCallbackTest.php';
+require __DIR__ . '/PublicationLifecycleTest.php';
 
+$GLOBALS['wpdb'] = new FakeWpdb();
 $count = 0;
 
 foreach (get_defined_functions()['user'] as $function) {

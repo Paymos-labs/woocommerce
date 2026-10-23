@@ -40,7 +40,7 @@ final class StorefrontHooks
         }
 
         $url = (string) $order->get_meta('_paymos_payment_url');
-        if ($url === '') {
+        if (!CheckoutUrl::isTrusted($url)) {
             return $actions;
         }
 
@@ -50,7 +50,7 @@ final class StorefrontHooks
         // from the server and cuts a fresh one only if the server says it
         // ended. One the server still holds open (the deadline in the meta is
         // stale) sends the buyer back to it.
-        if (InvoiceState::needsNewInvoice($order)) {
+        if (InvoiceState::needsNewInvoice($order) || !OrderAmountGuard::currentMatchesSnapshot($order)) {
             return $actions;
         }
 

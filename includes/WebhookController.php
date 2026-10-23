@@ -10,6 +10,7 @@ use Paymos\Exception\SignatureMismatchException;
 use Paymos\Exception\TimestampSkewException;
 use Paymos\Plugin\InvoiceReverseVerifier;
 use Paymos\Plugin\StatusMapper;
+use Paymos\Plugin\WordPressOrderLock;
 use Paymos\Webhook\MultiEnvironmentWebhookVerifier;
 use Paymos\Webhook\WebhookEvent;
 
@@ -71,7 +72,9 @@ final class WebhookController
         } catch (EventInProgressException $e) {
             // Another delivery of this event holds the lock and has not finished.
             // Not a duplicate: a 2xx would mark it delivered even if that delivery
-            // then fails. 409 makes the server retry; the lock is not ours to drop.
+            // then fails. 409 makes the server retry. Release only this delivery's
+            // event token if it acquired one before encountering an occupied order mutex.
+            $eventStore->release();
             Logger::info('Paymos webhook is still being processed by another delivery.');
             return new \WP_REST_Response(array('error' => 'in_progress'), 409);
         } catch (SignatureMismatchException $e) {
@@ -80,8 +83,8 @@ final class WebhookController
         } catch (TimestampSkewException $e) {
             Logger::error('Paymos webhook timestamp skew.');
             return new \WP_REST_Response(array('error' => 'bad_timestamp'), 401);
-        } catch (\RuntimeException $e) {
-            $eventStore->release();
+        } catch (\Throwable $e) {
+            try { $eventStore->release(); } catch (\RuntimeException $releaseError) { /* Keep the original retryable failure. */ }
             Logger::error('Paymos webhook processing failed: ' . $e->getMessage());
             return new \WP_REST_Response(array('error' => 'processing_failed'), 400);
         }
@@ -101,28 +104,37 @@ final class WebhookController
             throw new \RuntimeException('Paymos external order id has an invalid format.');
         }
 
-        $order = wc_get_order((int) $matches[1]);
-        if (!$order) {
-            throw new \RuntimeException('Woo order for Paymos external order id was not found.');
+        $lock = new WordPressOrderLock('woocommerce', (int) $matches[1]);
+        if (!$lock->acquire()) {
+            throw new EventInProgressException('Paymos Woo order is busy.');
         }
-        $storedExternalOrderId = method_exists($order, 'get_meta')
-            ? (string) $order->get_meta('_paymos_external_order_id', true)
-            : '';
-        if ($storedExternalOrderId === '' || !hash_equals($storedExternalOrderId, $externalOrderId)) {
-            throw new \RuntimeException('Paymos external order id does not match the Woo order.');
+        try {
+            $order = FreshOrder::load((int) $matches[1], $lock);
+            if (!$order) {
+                throw new \RuntimeException('Woo order for Paymos external order id was not found.');
+            }
+            $storedExternalOrderId = method_exists($order, 'get_meta')
+                ? (string) $order->get_meta('_paymos_external_order_id', true)
+                : '';
+            if ($storedExternalOrderId === '' || !hash_equals($storedExternalOrderId, $externalOrderId)) {
+                throw new \RuntimeException('Paymos external order id does not match the Woo order.');
+            }
+
+            $recovered = self::assertOrderMatchesEvent($order, $event, $environment, $lock);
+            self::reverseVerifyTerminalEvent($eventObject, $order, $environment, $recovered);
+
+            $mapper = new OrderMapper();
+            $lock->assertOwned();
+            $mapper->apply($order, $event, false, $lock);
+
+            Logger::info('Paymos webhook applied to Woo order.', array(
+                'external_order_id' => $externalOrderId,
+                'environment' => (string) $environment,
+                'event_type' => isset($event['event_type']) && is_scalar($event['event_type']) ? (string) $event['event_type'] : '',
+            ));
+        } finally {
+            $lock->release();
         }
-
-        self::assertOrderMatchesEvent($order, $event, $environment);
-        self::reverseVerifyTerminalEvent($eventObject, $order, $environment);
-
-        $mapper = new OrderMapper();
-        $mapper->apply($order, $event);
-
-        Logger::info('Paymos webhook applied to Woo order.', array(
-            'external_order_id' => $externalOrderId,
-            'environment' => (string) $environment,
-            'event_type' => isset($event['event_type']) && is_scalar($event['event_type']) ? (string) $event['event_type'] : '',
-        ));
     }
 
     /**
@@ -153,10 +165,10 @@ final class WebhookController
     /**
      * @param array<string, mixed> $event
      */
-    private static function assertOrderMatchesEvent($order, array $event, $environment)
+    private static function assertOrderMatchesEvent($order, array $event, $environment, WordPressOrderLock $lock)
     {
         $orderEnvironment = method_exists($order, 'get_meta') ? (string) $order->get_meta('_paymos_environment', true) : '';
-        if ($orderEnvironment !== '' && $orderEnvironment !== (string) $environment) {
+        if ($orderEnvironment === '' || $orderEnvironment !== (string) $environment) {
             throw new \RuntimeException('Paymos webhook environment does not match Woo order environment.');
         }
 
@@ -166,18 +178,30 @@ final class WebhookController
             $eventProjectId = (string) $event['data']['project_id'];
         }
 
-        if ($orderProjectId !== '' && $eventProjectId !== '' && $orderProjectId !== $eventProjectId) {
+        if ($orderProjectId === '' || $eventProjectId === '' || $orderProjectId !== $eventProjectId) {
             throw new \RuntimeException('Paymos webhook project does not match Woo order project.');
         }
+        $recovered = false;
+        if ((string) $order->get_meta('_paymos_creation_intent', true) === 'pending') {
+            // Independent exact POST learns the ID; the callback ID is never adopted.
+            CreationIntent::recover($order, $lock, self::client($environment));
+            $recovered = true;
+        }
+        $invoiceId = isset($event['data']['invoice_id']) && is_scalar($event['data']['invoice_id']) ? (string) $event['data']['invoice_id'] : '';
+        if ($invoiceId === '' || self::orderMeta($order, '_paymos_invoice_id') !== $invoiceId) {
+            throw new \RuntimeException('Paymos invoice does not match Woo order.');
+        }
+        return $recovered;
     }
 
-    private static function reverseVerifyTerminalEvent(WebhookEvent $event, $order, $environment)
+    private static function reverseVerifyTerminalEvent(WebhookEvent $event, $order, $environment, $force = false)
     {
-        if (!self::requiresReverseVerify($event)) {
+        if (!$force && !self::requiresReverseVerify($event)) {
             return;
         }
 
         $result = (new InvoiceReverseVerifier(self::client($environment)))->verify($event, array(
+            'environment' => $environment,
             'project_id' => self::orderMeta($order, '_paymos_project_id'),
             'external_order_id' => $event->externalOrderId(),
             'amount' => self::orderMeta($order, '_paymos_invoice_amount'),
@@ -196,6 +220,7 @@ final class WebhookController
             StatusMapper::ACTION_PAYMENT_COMPLETE,
             StatusMapper::ACTION_FAIL_ORDER,
             StatusMapper::ACTION_CANCEL_ORDER,
+            StatusMapper::ACTION_NOTE_PAID_LATE,
         ), true);
     }
 

@@ -3,7 +3,7 @@
  * Plugin Name: Paymos for WooCommerce
  * Plugin URI: https://paymos.io/docs/cms-woocommerce
  * Description: Accept stablecoin payments in WooCommerce through Paymos.
- * Version: 1.4.6
+ * Version: 1.4.7
  * Author: Paymos
  * Author URI: https://paymos.io
  * License: GPL-2.0-or-later
@@ -20,12 +20,13 @@ defined('ABSPATH') || exit;
 
 define('PAYMOS_WC_PLUGIN_FILE', __FILE__);
 define('PAYMOS_WC_PLUGIN_DIR', plugin_dir_path(__FILE__));
-define('PAYMOS_WC_PLUGIN_VERSION', '1.4.6');
+define('PAYMOS_WC_PLUGIN_VERSION', '1.4.7');
 
 require_once PAYMOS_WC_PLUGIN_DIR . 'includes/Autoloader.php';
 
 PaymosWooCommerce\Autoloader::register();
 
+// PAYMOS_BUNDLED_TRANSLATIONS_BEGIN
 // Without this the bundled catalogues are never on WordPress's search path and the
 // plugin's ~87 strings stay English whatever language the store runs in.
 add_action('init', static function () {
@@ -35,6 +36,7 @@ add_action('init', static function () {
         dirname(plugin_basename(PAYMOS_WC_PLUGIN_FILE)) . '/languages'
     );
 });
+// PAYMOS_BUNDLED_TRANSLATIONS_END
 
 PaymosWooCommerce\ConnectController::register();
 

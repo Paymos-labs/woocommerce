@@ -27,6 +27,17 @@ final class RefundDatabaseFixture extends FakeWpdb
     public $loseProjectionCommit = false;
     public $failWrite = false;
     public $commands = array();
+    public $failSchema = false;
+
+    public function query($sql)
+    {
+        if (is_array($sql) && strpos($sql['query'], 'CREATE TABLE') === 0 && $this->failSchema) {
+            $this->queries[] = $sql;
+            return false;
+        }
+        return parent::query($sql);
+    }
+
 
     public function get_row($sql, $output = null)
     {
@@ -1138,6 +1149,59 @@ function refund_test_external_discovery_recovers_a_missing_callback_and_full_req
     $api->refunds['dashboard-key']['project_id'] = 'prj_foreign';
     try { $adapter->observeExternal($wire, 'sandbox'); } catch (\UnexpectedValueException $expected) { return; }
     throw new RuntimeException('Changed project must fail before a native write.');
+}
+
+function refund_test_ajax_malformed_modes_and_sanitized_tokens_never_start_cash()
+{
+    foreach (array(array('mode' => 'FULL'), array('mode' => 'overpayment<script>'), array('mode' => array('overpayment')),
+        array('paymos_refund_token' => 'valid_token_123456<script>'), array('paymos_refund_token' => array('valid_token_123456'))) as $change) {
+        refund_setup($api);
+        $credentials = paymos_test_credentials();
+        $credentials['sandbox']['project_id'] = 'prj_123';
+        $credentials['sandbox'] += array('capabilities' => array('invoice_refunds_v1'), 'refund_contract_version' => 1, 'refunds_enabled' => true);
+        paymos_test_connect_credentials($credentials);
+        $GLOBALS['paymos_test_remote_handler'] = static function ($url, array $args) use ($api) {
+            $response = $api->request($args['method'], $url, $args['headers'], $args['body'], $args['timeout']);
+            return array('response' => array('code' => $response->statusCode()), 'body' => $response->body(), 'headers' => $response->headers());
+        };
+        $_POST = array_replace(array('order_id' => 100, 'mode' => 'overpayment', 'paymos_refund_token' => 'valid_refund_token_01'), $change);
+        RefundAdapter::managedAjax();
+        assertSameValue(0, count($api->posts()), 'Malformed controls cannot be converted into a valid new refund.');
+        assertSameValue(0, count($GLOBALS['wpdb']->intents), 'Malformed controls never persist an intent.');
+        assertSameValue(false, $GLOBALS['paymos_test_json_response']['success'], 'Invalid controls return the existing error envelope.');
+    }
+}
+
+function refund_test_native_ajax_preserves_wire_fields_and_exact_saved_amount()
+{
+    paymos_test_connected_native_refund(array('capabilities' => array('invoice_refunds_v1'),
+        'refund_contract_version' => 1, 'refunds_enabled' => true), $api);
+    $before = $_POST;
+    RefundAdapter::nativeAjax();
+    assertSameValue($before, $_POST, 'Native transport values remain unchanged through validation.');
+    assertSameValue(1, count($api->posts()), 'Retry keeps one accepted operation and cash POST.');
+    $operationId = $GLOBALS['paymos_test_json_response']['paymos_refund']['operation_id'];
+    $intent = (new RefundIntentStore())->getIntent($operationId);
+    assertSameValue('100', $intent->fullDraft()['amount_decimal'], 'Native decimal total retains its exact meaning.');
+    assertSameValue(0, $GLOBALS['refund_native_writes'], 'Pending cash never books an early native refund.');
+}
+
+function refund_test_schema_identifier_is_prepared_and_failed_creation_can_retry()
+{
+    refund_setup($api);
+    unset($GLOBALS['paymos_test_options'][RefundIntentStore::SCHEMA_OPTION]);
+    $db = $GLOBALS['wpdb'];
+    $db->failSchema = true;
+    try { RefundIntentStore::install(); throw new RuntimeException('Schema failure must not be accepted.'); }
+    catch (RuntimeException $error) { assertSameValue('refund_schema_unavailable', $error->getMessage(), 'DDL refusal remains explicit.'); }
+    assertSameValue('', get_option(RefundIntentStore::SCHEMA_OPTION, ''), 'A failed schema never marks installation ready.');
+    $query = end($db->queries);
+    assertTrueValue(is_array($query) && strpos($query['query'], 'CREATE TABLE IF NOT EXISTS %i') === 0,
+        'Table identifiers use the real prepare boundary, never string interpolation.');
+    assertSameValue(array('wp_paymos_refund_intents'), $query['args'], 'Only the canonical table identifier is substituted.');
+    $db->failSchema = false;
+    RefundIntentStore::install();
+    assertSameValue('1', get_option(RefundIntentStore::SCHEMA_OPTION, ''), 'A later successful retry marks the existing schema ready.');
 }
 
 $refundCount = 0;

@@ -70,36 +70,50 @@ final class RefundAdapter implements NativeRefundProjectorInterface
 
     public static function nativeAjax()
     {
-        $id = isset($_POST['order_id']) ? absint($_POST['order_id']) : 0;
+        // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Preserve native monetary strings for full-draft validation; scalar controls are validated below.
+        $input = wp_unslash($_POST);
+        $id = isset($input['order_id']) && is_scalar($input['order_id']) ? absint($input['order_id']) : 0;
         $order = wc_get_order($id);
-        if (!$order || $order->get_payment_method() !== 'paymos') {
-            return;
-        }
-        self::ajax($id, RefundStates::FULL);
-    }
-
-    public static function managedAjax()
-    {
-        self::ajax(isset($_POST['order_id']) ? absint($_POST['order_id']) : 0,
-            isset($_POST['mode']) && $_POST['mode'] === 'summary' ? 'summary' : RefundStates::OVERPAYMENT);
-    }
-
-    private static function ajax($id, $mode)
-    {
+        if (!$order || $order->get_payment_method() !== 'paymos') { return; }
         if (!check_ajax_referer('order-item', 'security', false)
             || !current_user_can('edit_shop_orders') || !current_user_can('edit_shop_order', $id)) {
             wp_send_json_error(array('error' => __('You do not have permission to refund this order.', 'paymos-for-woocommerce')), 200);
             return;
         }
+        self::ajax($id, RefundStates::FULL, $input);
+    }
+
+    public static function managedAjax()
+    {
+        if (!check_ajax_referer('order-item', 'security', false)
+            || !current_user_can('edit_shop_orders')) {
+            wp_send_json_error(array('error' => __('You do not have permission to refund this order.', 'paymos-for-woocommerce')), 200);
+            return;
+        }
+        // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Preserve unexpected amount fields for downstream rejection and exact native values; validate scalar controls separately.
+        $input = wp_unslash($_POST);
+        $id = isset($input['order_id']) && is_scalar($input['order_id']) ? absint($input['order_id']) : 0;
+        if (!current_user_can('edit_shop_order', $id)) {
+            wp_send_json_error(array('error' => __('You do not have permission to refund this order.', 'paymos-for-woocommerce')), 200);
+            return;
+        }
+        $mode = !array_key_exists('mode', $input) ? RefundStates::OVERPAYMENT
+            : (is_string($input['mode']) && in_array($input['mode'], array('summary', RefundStates::OVERPAYMENT), true) ? $input['mode'] : '');
+        self::ajax($id, $mode, $input);
+    }
+
+    private static function ajax($id, $mode, array $input)
+    {
         try {
             $adapter = new self();
             if ($mode === 'summary') {
                 wp_send_json_success($adapter->summary((string) $id));
                 return;
             }
-            $token = isset($_POST['paymos_refund_token']) && is_string($_POST['paymos_refund_token'])
-                ? sanitize_text_field(wp_unslash($_POST['paymos_refund_token'])) : '';
-            $intent = $adapter->request((string) $id, $mode, $token, wp_unslash($_POST));
+            $token = isset($input['paymos_refund_token']) && is_string($input['paymos_refund_token'])
+                ? sanitize_text_field($input['paymos_refund_token']) : '';
+            if ($token !== ($input['paymos_refund_token'] ?? null)) { $token = ''; }
+            $intent = $adapter->request((string) $id, $mode, $token, $input);
             // Woo's normal success response would book a refund before cash completion.
             wp_send_json(array('success' => false, 'data' => array('error' => __('Refund requested. The order is updated when the refund completes.', 'paymos-for-woocommerce')), 'paymos_refund' => $adapter->view($intent)));
         } catch (\Throwable $error) {
@@ -139,7 +153,7 @@ final class RefundAdapter implements NativeRefundProjectorInterface
                 'environment' => (string) $order->get_meta('_paymos_environment', true), 'mode' => $mode, 'full_draft' => $draft,
             ));
             $reason = $this->localPreflight($intent);
-            if ($reason !== null) { throw new \RuntimeException($reason); }
+            if ($reason !== null) { throw new \RuntimeException(esc_html($reason)); }
             $intent = $this->store->createIntent($intent);
             $this->coordinator($intent)->submit($intent->operationId());
             $this->reconcile($intent->operationId());
@@ -300,7 +314,7 @@ final class RefundAdapter implements NativeRefundProjectorInterface
     {
         if (self::$finalizing !== null && self::$finalizing->paymentKey() === (string) $orderId) { return; }
         // WooCommerce resumes after caught save exceptions, so refusal must stop the request.
-        wp_die(__('Nothing was refunded. Open the order in WooCommerce admin and refund it there.', 'paymos-for-woocommerce'),
+        wp_die(esc_html__('Nothing was refunded. Open the order in WooCommerce admin and refund it there.', 'paymos-for-woocommerce'),
             '', array('response' => 403));
     }
 

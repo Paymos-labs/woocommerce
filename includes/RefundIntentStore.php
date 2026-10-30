@@ -38,7 +38,8 @@ final class RefundIntentStore implements RefundIntentStoreInterface
         }
         $table = self::tableName();
         $collate = $wpdb->get_charset_collate();
-        $sql = "CREATE TABLE IF NOT EXISTS {$table} (
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.DirectDatabaseQuery.SchemaChange -- Idempotent custom durable table setup precedes transaction recovery.
+        if ($wpdb->query($wpdb->prepare("CREATE TABLE IF NOT EXISTS %i (
             operation_id varchar(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
             installation_id varchar(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
             request_token varchar(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
@@ -50,8 +51,8 @@ final class RefundIntentStore implements RefundIntentStoreInterface
             PRIMARY KEY (operation_id), UNIQUE KEY request_token (installation_id,request_token),
             UNIQUE KEY external_order_id (external_order_id), UNIQUE KEY withdrawal_id (withdrawal_id),
             KEY payment_key (native_payment_key), KEY due (next_check,operation_id)
-        ) ENGINE=InnoDB {$collate};";
-        if ($wpdb->query($sql) === false) {
+        ) ENGINE=InnoDB {$collate};", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Trusted core get_charset_collate() SQL fragment; table identifier uses %i.
+            $table)) === false) {
             throw new \RuntimeException('refund_schema_unavailable');
         }
         update_option(self::SCHEMA_OPTION, '1', false);
@@ -143,6 +144,7 @@ final class RefundIntentStore implements RefundIntentStoreInterface
                 }
             } elseif (ExternalRefundObservation::needsNote($row)) {
                 global $wpdb;
+                // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Authoritative refund state under transaction/CAS/ownership fences must not be served from stale object cache.
                 $native = $wpdb->get_results($wpdb->prepare('SELECT comment_ID FROM %i WHERE comment_post_ID = %d AND comment_type = %s AND LOCATE(%s, comment_content) > 0',
                     $wpdb->prefix . 'comments', (int) $this->paymentKey, 'order_note', $marker), ARRAY_A);
                 if (!is_array($native) || $wpdb->last_error !== '') { throw new \RuntimeException('refund_external_note_read_failed'); }
@@ -176,12 +178,14 @@ final class RefundIntentStore implements RefundIntentStoreInterface
         }
         foreach ($names as $name) {
             $table = $wpdb->prefix . $name;
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Authoritative refund state under transaction/CAS/ownership fences must not be served from stale object cache.
             $row = $wpdb->get_row($wpdb->prepare('SHOW TABLE STATUS WHERE Name = %s', $table), ARRAY_A);
             if (!is_array($row) || !isset($row['Engine']) || strcasecmp($row['Engine'], 'InnoDB') !== 0) {
                 throw new \RuntimeException('refund_transactional_tables_required');
             }
         }
         foreach (array('woocommerce_', 'wc_', 'actionscheduler_') as $prefix) {
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Authoritative refund state under transaction/CAS/ownership fences must not be served from stale object cache.
             $rows = $wpdb->get_results($wpdb->prepare('SHOW TABLE STATUS WHERE Name LIKE %s', $wpdb->esc_like($wpdb->prefix . $prefix) . '%'), ARRAY_A);
             if (!is_array($rows) || $wpdb->last_error !== '') { throw new \RuntimeException('refund_transactional_tables_required'); }
             foreach ($rows as $row) {
@@ -264,6 +268,7 @@ final class RefundIntentStore implements RefundIntentStoreInterface
             $data['created_at'] = $now;
             $data['checks'] = 0;
             $data['version'] = 1;
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Authoritative refund state under transaction/CAS/ownership fences must not be served from stale object cache.
             $inserted = $wpdb->insert(self::tableName(), array(
                 'operation_id' => $intent->operationId(), 'installation_id' => $data['installation_id'],
                 'request_token' => $data['request_token'], 'external_order_id' => $intent->externalOrderId(),
@@ -280,7 +285,8 @@ final class RefundIntentStore implements RefundIntentStoreInterface
     public function findByRequestToken(string $installationId, string $token): ?RefundIntent
     {
         global $wpdb;
-        return $this->row($wpdb->prepare('SELECT payload FROM %i WHERE installation_id = %s AND request_token = %s', self::tableName(), $installationId, $token));
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Authoritative refund state under transaction/CAS/ownership fences must not be served from stale object cache.
+        return $this->row($wpdb->get_row($wpdb->prepare('SELECT payload FROM %i WHERE installation_id = %s AND request_token = %s', self::tableName(), $installationId, $token), ARRAY_A));
     }
 
     public function getIntent(string $operationId): RefundIntent
@@ -296,7 +302,8 @@ final class RefundIntentStore implements RefundIntentStoreInterface
     public function forPayment(string $paymentKey): array
     {
         global $wpdb;
-        return $this->rows($wpdb->prepare('SELECT payload FROM %i WHERE native_payment_key = %s ORDER BY created_at, operation_id', self::tableName(), $paymentKey));
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Authoritative refund state under transaction/CAS/ownership fences must not be served from stale object cache.
+        return $this->rows($wpdb->get_results($wpdb->prepare('SELECT payload FROM %i WHERE native_payment_key = %s ORDER BY created_at, operation_id', self::tableName(), $paymentKey), ARRAY_A));
     }
 
     public function bindWithdrawal(string $operationId, string $id): string
@@ -401,8 +408,9 @@ final class RefundIntentStore implements RefundIntentStoreInterface
         global $wpdb;
         self::install();
         $limit = max(1, min(100, $limit));
-        $items = $this->rows($wpdb->prepare('SELECT payload FROM %i WHERE next_check <= %d AND operation_id > %s ORDER BY operation_id LIMIT %d',
-            self::tableName(), $now->getTimestamp(), $cursor ?: '', $limit));
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Authoritative refund state under transaction/CAS/ownership fences must not be served from stale object cache.
+        $items = $this->rows($wpdb->get_results($wpdb->prepare('SELECT payload FROM %i WHERE next_check <= %d AND operation_id > %s ORDER BY operation_id LIMIT %d',
+            self::tableName(), $now->getTimestamp(), $cursor ?: '', $limit), ARRAY_A));
         return new RefundIntentPage($items, count($items) === $limit ? end($items)->operationId() : null);
     }
 
@@ -428,21 +436,20 @@ final class RefundIntentStore implements RefundIntentStoreInterface
     private function find($column, $value): ?RefundIntent
     {
         global $wpdb;
-        return $this->row($wpdb->prepare('SELECT payload FROM %i WHERE %i = %s', self::tableName(), $column, $value));
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Authoritative refund state under transaction/CAS/ownership fences must not be served from stale object cache.
+        return $this->row($wpdb->get_row($wpdb->prepare('SELECT payload FROM %i WHERE %i = %s', self::tableName(), $column, $value), ARRAY_A));
     }
 
-    private function row($sql): ?RefundIntent
+    private function row($row): ?RefundIntent
     {
         global $wpdb;
-        $row = $wpdb->get_row($sql, ARRAY_A);
         if ($wpdb->last_error !== '') { throw new \RuntimeException('refund_store_read_failed'); }
         return is_array($row) ? $this->decode($row['payload']) : null;
     }
 
-    private function rows($sql): array
+    private function rows($rows): array
     {
         global $wpdb;
-        $rows = $wpdb->get_results($sql, ARRAY_A);
         if (!is_array($rows) || $wpdb->last_error !== '') { throw new \RuntimeException('refund_store_read_failed'); }
         return array_map(function ($row) { return $this->decode($row['payload']); }, $rows);
     }
@@ -475,6 +482,7 @@ final class RefundIntentStore implements RefundIntentStoreInterface
         $data = array_replace($old, $changes, array('version' => $old['version'] + 1));
         $columns = array('payload' => $this->encode($data), 'withdrawal_id' => $data['withdrawal_id'], 'version' => $data['version']);
         if ($nextCheck !== null) { $columns['next_check'] = $nextCheck; }
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Authoritative refund state under transaction/CAS/ownership fences must not be served from stale object cache.
         if ($wpdb->update(self::tableName(), $columns, array('operation_id' => $intent->operationId(), 'version' => $old['version'])) !== 1) {
             throw new \RuntimeException('refund_store_write_conflict');
         }

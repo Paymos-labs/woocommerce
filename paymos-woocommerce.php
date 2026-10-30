@@ -3,7 +3,7 @@
  * Plugin Name: Paymos for WooCommerce
  * Plugin URI: https://paymos.io/docs/cms-woocommerce
  * Description: Accept stablecoin payments in WooCommerce through Paymos.
- * Version: 1.4.7
+ * Version: 1.5.0
  * Author: Paymos
  * Author URI: https://paymos.io
  * License: GPL-2.0-or-later
@@ -20,7 +20,7 @@ defined('ABSPATH') || exit;
 
 define('PAYMOS_WC_PLUGIN_FILE', __FILE__);
 define('PAYMOS_WC_PLUGIN_DIR', plugin_dir_path(__FILE__));
-define('PAYMOS_WC_PLUGIN_VERSION', '1.4.7');
+define('PAYMOS_WC_PLUGIN_VERSION', '1.5.0');
 
 require_once PAYMOS_WC_PLUGIN_DIR . 'includes/Autoloader.php';
 
@@ -39,6 +39,15 @@ add_action('init', static function () {
 // PAYMOS_BUNDLED_TRANSLATIONS_END
 
 PaymosWooCommerce\ConnectController::register();
+PaymosWooCommerce\RefundAdapter::register();
+
+add_action('admin_init', static function () {
+    try {
+        PaymosWooCommerce\RefundIntentStore::install();
+    } catch (\Throwable $error) {
+        PaymosWooCommerce\Logger::error('Paymos refund schema upgrade failed: ' . $error->getMessage());
+    }
+});
 
 add_action('before_woocommerce_init', static function () {
     if (class_exists('\Automattic\WooCommerce\Utilities\FeaturesUtil')) {
@@ -91,6 +100,8 @@ add_action('init', array(PaymosWooCommerce\Reconciler::class, 'maybe_schedule'))
 add_action(PaymosWooCommerce\Reconciler::HOOK, array(PaymosWooCommerce\Reconciler::class, 'run'));
 
 register_deactivation_hook(PAYMOS_WC_PLUGIN_FILE, array(PaymosWooCommerce\Reconciler::class, 'unschedule'));
+register_deactivation_hook(PAYMOS_WC_PLUGIN_FILE, array(PaymosWooCommerce\RefundAdapter::class, 'unschedule'));
 register_activation_hook(PAYMOS_WC_PLUGIN_FILE, static function () {
     PaymosWooCommerce\EventStore::install();
+    PaymosWooCommerce\RefundIntentStore::install();
 });

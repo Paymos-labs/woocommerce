@@ -217,12 +217,57 @@ if (!function_exists('register_deactivation_hook')) {
 }
 function add_action($hook, $callback, $priority = 10, $acceptedArgs = 1)
 {
+    $GLOBALS['paymos_actions'][$hook][$priority][] = array($callback, $acceptedArgs);
     return true;
+}
+
+function do_action($hook, ...$args)
+{
+    $priorities = $GLOBALS['paymos_actions'][$hook] ?? array();
+    ksort($priorities);
+    foreach ($priorities as $callbacks) {
+        foreach ($callbacks as $registered) {
+            call_user_func_array($registered[0], array_slice($args, 0, $registered[1]));
+        }
+    }
+}
+
+function wp_die($message = '', $title = '', $args = array())
+{
+    $GLOBALS['paymos_test_die_status'] = $args['response'] ?? 500;
+    // A real wp_die exits rather than entering WooCommerce's Exception handlers.
+    throw new Error($message);
 }
 
 function current_user_can($capability)
 {
-    return true;
+    return $GLOBALS['paymos_test_capabilities'][$capability] ?? true;
+}
+
+function absint($value)
+{
+    return abs((int) $value);
+}
+
+function check_ajax_referer($action, $queryArg = false, $stop = true)
+{
+    return $GLOBALS['paymos_test_ajax_nonce_valid'] ?? true;
+}
+
+function wp_send_json($response, $statusCode = null)
+{
+    $GLOBALS['paymos_test_json_response'] = $response;
+    $GLOBALS['paymos_test_json_status'] = $statusCode === null ? 200 : $statusCode;
+}
+
+function wp_send_json_error($data = null, $statusCode = null)
+{
+    wp_send_json(array('success' => false, 'data' => $data), $statusCode);
+}
+
+function wp_send_json_success($data = null, $statusCode = null)
+{
+    wp_send_json(array('success' => true, 'data' => $data), $statusCode);
 }
 
 function wp_unslash($value)
@@ -254,6 +299,7 @@ function wp_delete_file($path)
 
 function wp_safe_remote_request($url, array $args)
 {
+    $GLOBALS['paymos_test_http_requests'][] = array('url' => $url, 'args' => $args);
     if (is_callable($GLOBALS['paymos_test_remote_handler'])) {
         return call_user_func($GLOBALS['paymos_test_remote_handler'], $url, $args);
     }
@@ -356,6 +402,11 @@ function paymos_reset_test_state()
     $GLOBALS['paymos_test_admin_errors'] = array();
     $GLOBALS['paymos_test_failed_option_updates'] = array();
     $GLOBALS['paymos_test_remote_handler'] = null;
+    $GLOBALS['paymos_test_http_requests'] = array();
+    $GLOBALS['paymos_test_capabilities'] = array();
+    $GLOBALS['paymos_test_ajax_nonce_valid'] = true;
+    $GLOBALS['paymos_test_json_response'] = null;
+    $GLOBALS['paymos_test_json_status'] = null;
     $_POST = array();
     if (class_exists('PaymosWooCommerce\\Config')) {
         PaymosWooCommerce\Config::reset_cache();

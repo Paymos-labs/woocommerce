@@ -264,37 +264,12 @@ final class Gateway extends \WC_Payment_Gateway
         return parent::is_available() && Config::has_environment(Config::mode());
     }
 
-    /**
-     * Stablecoin payments are settled on-chain and cannot be reversed
-     * programmatically — Paymos exposes no refund API. Record the merchant's
-     * intent as an order note and decline the automatic refund so WooCommerce
-     * never books a refund that did not move on-chain.
-     *
-     * @param int $order_id
-     * @param float|null $amount
-     * @param string $reason
-     * @return \WP_Error
-     */
+    /** Direct gateway calls have no durable operation context. */
     public function process_refund($order_id, $amount = null, $reason = '')
     {
-        $order = wc_get_order($order_id);
-        if ($order) {
-            $note = sprintf(
-                /* translators: 1: refund amount with currency, 2: refund reason (may be empty) */
-                __('Paymos refund requested for %1$s. Send the refund on-chain from your Paymos dashboard — WooCommerce did not record an automatic refund. %2$s', 'paymos-for-woocommerce'),
-                $amount !== null ? wc_price($amount, array('currency' => $order->get_currency())) : $order->get_formatted_order_total(),
-                $reason !== '' ? sprintf(
-                    /* translators: %s: merchant-provided refund reason */
-                    __('Reason: %s', 'paymos-for-woocommerce'),
-                    $reason
-                ) : ''
-            );
-            $order->add_order_note($note);
-        }
-
         return new \WP_Error(
-            'paymos_manual_refund',
-            __('Paymos refunds are processed manually on-chain. Open the invoice in your Paymos dashboard and send the refund to the customer. No automatic refund was recorded.', 'paymos-for-woocommerce')
+            'paymos_refund_context_required',
+            __('Nothing was refunded. Open the order in WooCommerce admin and refund it there.', 'paymos-for-woocommerce')
         );
     }
 

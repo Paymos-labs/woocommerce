@@ -611,7 +611,9 @@ final class RefundAdapter implements NativeRefundProjectorInterface
             }
             echo '<p id="paymos-refund-summary"></p><p id="paymos-refund-error" role="alert"></p><button type="button" disabled class="button" id="paymos-overpayment">' . esc_html__('Refund overpayment', 'paymos-for-woocommerce') . '</button></div>';
             $settings = array('order_id' => $order->get_id(), 'security' => wp_create_nonce('order-item'), 'tokens' => $tokens);
-            echo '<script>jQuery(function($){var p=' . wp_json_encode($settings) . ';
+            wp_register_script('paymos-woocommerce-refunds', false, array('jquery'), PAYMOS_WC_PLUGIN_VERSION, true);
+            wp_enqueue_script('paymos-woocommerce-refunds');
+            wp_add_inline_script('paymos-woocommerce-refunds', 'jQuery(function($){var p=' . wp_json_encode($settings) . ';
                 $.ajaxPrefilter(function(o){if(typeof o.data!=="string")return;var d=new URLSearchParams(o.data);
                     if(d.get("action")!=="woocommerce_refund_line_items"||d.get("order_id")!==String(p.order_id))return;
                     d.set("paymos_refund_token",p.tokens.full);o.data=d.toString();
@@ -622,7 +624,7 @@ final class RefundAdapter implements NativeRefundProjectorInterface
                 $.post(ajaxurl,{action:"paymos_refund",mode:"summary",order_id:p.order_id,security:p.security},function(r){if(r.success){var a=r.data.refund_asset||{};
                     $("#paymos-refund-summary").text("' . esc_js(__('Full refund:', 'paymos-for-woocommerce')) . ' "+(r.data.full_refund_amount||"0")+" / ' . esc_js(__('Overpayment:', 'paymos-for-woocommerce')) . ' "+(r.data.overpayment_refund_amount||"0")+" "+(a.currency||"")+"/"+(a.network||""));
                     $("#paymos-overpayment").prop("disabled",r.data.can_refund_overpayment!==true);}else{refundError(r);}});
-            });</script>';
+            });');
         } catch (\Throwable $error) {
             echo '<p>' . esc_html__('Paymos refunds could not be loaded. Reload the page to try again.', 'paymos-for-woocommerce') . '</p>';
             Logger::error('Paymos refund panel failed: ' . $error->getMessage());

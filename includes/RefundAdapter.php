@@ -175,7 +175,7 @@ final class RefundAdapter implements NativeRefundProjectorInterface
             if ($intent->mode() === RefundStates::FULL && !$this->matchesDraft($fresh, $intent->fullDraft())) {
                 return 'refund_native_draft_changed';
             }
-            $summary = isset($invoice['refund_summary']) ? $invoice['refund_summary'] : array();
+            $summary = $this->invoiceSummary($invoice);
             $field = $intent->mode() === RefundStates::FULL ? 'can_refund_full' : 'can_refund_overpayment';
             if (!isset($summary[$field]) || $summary[$field] !== true) {
                 return 'refund_server_not_eligible';
@@ -550,7 +550,7 @@ final class RefundAdapter implements NativeRefundProjectorInterface
                 || $invoice['is_test'] !== ($order->get_meta('_paymos_environment', true) === 'sandbox')) {
                 throw new \RuntimeException('refund_invoice_scope_conflict');
             }
-            $summary = isset($invoice['refund_summary']) && is_array($invoice['refund_summary']) ? $invoice['refund_summary'] : array();
+            $summary = $this->invoiceSummary($invoice);
             $blocked = false;
             try { $this->assertOriginalPaid($order); } catch (\Throwable $error) { $blocked = true; }
             try { $this->store->assertNoExternalReview(); } catch (\Throwable $error) { $blocked = true; }
@@ -563,6 +563,25 @@ final class RefundAdapter implements NativeRefundProjectorInterface
             if ($blocked) { $summary['can_refund_full'] = false; $summary['can_refund_overpayment'] = false; }
             return $summary;
         });
+    }
+
+    private function invoiceSummary(array $invoice): array
+    {
+        if (array_key_exists('refund_summary', $invoice)) {
+            return is_array($invoice['refund_summary']) ? $invoice['refund_summary'] : array();
+        }
+        $status = isset($invoice['status']) && is_string($invoice['status']) ? $invoice['status'] : '';
+        $payment = isset($invoice['payment']) && is_array($invoice['payment']) ? $invoice['payment'] : array();
+        $paid = in_array($status, array('paid', 'paid_over'), true);
+        $overpaid = $status === 'paid_over';
+        return array(
+            'can_refund_full' => $paid,
+            'can_refund_overpayment' => $overpaid,
+            'full_refund_amount' => isset($payment['paid']) && is_string($payment['paid']) ? $payment['paid'] : ($paid ? (string) ($invoice['order']['amount'] ?? '0') : '0'),
+            'overpayment_refund_amount' => $overpaid && isset($payment['paid']) && is_string($payment['paid']) ? $payment['paid'] : '0',
+            'refund_asset' => isset($payment['currency'], $payment['network'])
+                ? array('currency' => $payment['currency'], 'network' => $payment['network']) : null,
+        );
     }
 
     public static function panel($order)

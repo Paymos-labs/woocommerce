@@ -1204,6 +1204,21 @@ function refund_test_schema_identifier_is_prepared_and_failed_creation_can_retry
     assertSameValue('1', get_option(RefundIntentStore::SCHEMA_OPTION, ''), 'A later successful retry marks the existing schema ready.');
 }
 
+function refund_test_invoice_without_refund_summary_derives_summary_and_submits()
+{
+    $adapter = refund_setup($api, $store, $config);
+    unset($api->invoice['refund_summary']);
+    $api->invoice['status'] = 'paid_over';
+    $api->invoice['payment'] = array('currency' => 'USDT', 'network' => 'Tron', 'paid' => '120', 'expected' => '100');
+    $summary = $adapter->summary('100');
+    assertSameValue(true, $summary['can_refund_full'], 'Paid-over invoice without refund_summary allows full refund.');
+    assertSameValue(true, $summary['can_refund_overpayment'], 'Paid-over invoice without refund_summary allows overpayment refund.');
+    assertSameValue('120', $summary['full_refund_amount'], 'Paid amount is used when refund_summary is omitted.');
+    $intent = $adapter->request('100', 'overpayment', 'no-summary-over-001', array());
+    assertSameValue('created', $intent->cashState(), 'Overpayment refund succeeds when invoice omits refund_summary.');
+    assertSameValue(1, count($api->posts()), 'POST /v1/refunds was called.');
+}
+
 $refundCount = 0;
 foreach (get_defined_functions()['user'] as $function) {
     if (strpos($function, 'refund_test_') !== 0) { continue; }

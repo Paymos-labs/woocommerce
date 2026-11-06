@@ -95,11 +95,38 @@ Before any terminal status is written the plugin pulls the invoice back from the
 Merchant API and re-checks it, so a forged or replayed body cannot complete an
 order on its own.
 
-A WP-Cron job runs every ten minutes as the safety net. It takes up to 50 Paymos
-orders still pending or on hold, and up to 50 failed or cancelled ones whose invoice
-is not final yet, pulls each invoice from the API and pushes it through the same
-mapping the webhook uses, guards included. A store whose webhooks were blocked for
-an afternoon catches up on its own.
+A WP-Cron job (`paymos_reconcile_orders`) runs every ten minutes as the invoice
+safety net. It takes up to 50 Paymos orders still pending or on hold, and up to 50
+failed or cancelled ones whose invoice is not final yet, pulls each invoice from
+the API and pushes it through the same mapping the webhook uses, guards included.
+A separate 1-minute WP-Cron job (`paymos_woocommerce_refunds_reconcile`) reconciles
+pending refunds.
+
+## Refunds
+
+The plugin supports native refunds through the Paymos Merchant API (`/v1/refunds`)
+in two server-calculated modes: `full` (full invoice refund) and `overpayment`
+(refund of the excess on a `paid_over` invoice). Paymos sends the refund as a new
+outbound blockchain transaction strictly to the verified `first_sender` address
+recorded on the paid invoice — no recipient wallet address is entered manually, and
+arbitrary partial refund amounts are not supported.
+
+From the WooCommerce order edit screen, administrators can start a refund in two
+ways:
+
+- the native WooCommerce **Refund** button on the order items box (submits a `full`
+  refund request);
+- the **Paymos Payment** refund panel on the order screen
+  (`woocommerce_admin_order_data_after_order_details`), which supports both `full`
+  and `overpayment` modes and shows the verified `first_sender` recipient and
+  current operation status.
+
+WooCommerce does not book a local `WC_Order_Refund` while the blockchain transfer
+is still in flight. Signed webhook callbacks on `/wp-json/paymos/v1/webhook` and
+the 1-minute `paymos_woocommerce_refunds_reconcile` WP-Cron job verify the refund
+against the Merchant API and record the WooCommerce order refund (or order note for
+`overpayment`) once the refund reaches `completed`. In Sandbox mode, terminal
+refund outcomes (`completed`, `failed`, `cancelled`) can be simulated for testing.
 
 ## Troubleshooting
 
@@ -118,12 +145,6 @@ the plugin will not complete an order it cannot reconcile.
 environment is not fully connected. Open the gateway settings and read the
 **Connection status** table; anything showing *Missing* means that environment
 never finished connecting.
-
-**Refunds.** A stablecoin payment that has reached finality is not reversible, and
-the automatic WooCommerce refund is declined on purpose so the store never books
-one that did not move on chain. The intent is recorded as an order note. Send the
-money back as a new outbound transaction — a withdrawal from your Paymos balance
-to the address you agreed with the customer.
 
 - [Documentation](https://paymos.io/docs/cms-woocommerce)
 - [Source](https://github.com/paymos-labs/woocommerce)

@@ -8,6 +8,12 @@ The public release history also lives at [paymos.io/changelog](https://paymos.io
 
 ## [Unreleased]
 
+## [1.6.2] - 2026-11-06
+
+- fix(cms): align marketplace manifests, refund copy, store links, and release guards
+- chore: bundle Paymos PHP SDK v1.9.1
+- chore: rebuild canonical CMS package
+
 ## [1.6.1] - 2026-11-03
 
 - fix(plugins): use wp_add_inline_script, sanitize nonces before wp_verify_nonce, and guard curl_close on PHP 8+

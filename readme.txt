@@ -4,7 +4,7 @@ Tags: payments, stablecoin, usdt, usdc, woocommerce
 Requires at least: 6.5
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 1.6.4
+Stable tag: 1.6.5
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,9 @@ The project currently selected in Paymos when you approve the connection. There 
 No. OAuth device authorization is only a one-time credential delivery channel. Runtime Merchant API calls remain HMAC signed.
 
 == Changelog ==
+
+= 1.6.5 =
+* chore: rebuild canonical CMS package
 
 = 1.6.4 =
 * chore: rebuild canonical CMS package

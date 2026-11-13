@@ -339,3 +339,48 @@ msgstr ""
 #: includes/OrderMapper.php:305
 msgid "Paymos: the customer finished paying for this order after the invoice closed. Check stock, then fulfil the order manually or refund the payment."
 msgstr ""
+
+msgid "Calculated by Paymos before the refund is sent."
+msgstr ""
+
+msgid "Every minute"
+msgstr ""
+
+msgid "Full refund:"
+msgstr ""
+
+msgid "Nothing was refunded. Open the order in WooCommerce admin and refund it there."
+msgstr ""
+
+msgid "Overpayment:"
+msgstr ""
+
+msgid "Paymos is waiting for the payment again — a confirmed transfer was rolled back on-chain."
+msgstr ""
+
+msgid "Paymos overpayment refund completed. The order stays paid and stock is unchanged."
+msgstr ""
+
+msgid "Paymos received only part of the payment. %1$s %2$s is still outstanding — the order stays on hold until the customer sends the rest."
+msgstr ""
+
+msgid "Paymos refunds"
+msgstr ""
+
+msgid "Paymos refunds could not be loaded. Reload the page to try again."
+msgstr ""
+
+msgid "Refund"
+msgstr ""
+
+msgid "Refund overpayment"
+msgstr ""
+
+msgid "Refund requested. The order is updated when the refund completes."
+msgstr ""
+
+msgid "The refund was not started. With Debug logging on, the reason is written to the WooCommerce logs."
+msgstr ""
+
+msgid "You do not have permission to refund this order."
+msgstr ""

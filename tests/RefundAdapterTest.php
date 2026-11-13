@@ -234,6 +234,7 @@ final class RefundApiFixture implements TransportInterface
     public $loseLockOnPost = false;
     public $replaceGet;
     public $requireCommittedIntent = false;
+    public $invoiceFailure = null;
     public $invoice;
 
     public function __construct()
@@ -274,6 +275,8 @@ final class RefundApiFixture implements TransportInterface
             if ($this->replaceGet !== null) { $response = array_replace($response, $this->replaceGet); }
             if ($response === null) { return new HttpResponse(404, '{}', array()); }
         } else {
+            if ($this->invoiceFailure instanceof \Throwable) { throw $this->invoiceFailure; }
+            if (is_int($this->invoiceFailure)) { return new HttpResponse($this->invoiceFailure, '{}', array()); }
             $response = $this->invoice;
         }
         return new HttpResponse(200, json_encode($response), array('Cache-Control' => 'private, no-store'));
@@ -289,6 +292,12 @@ final class RefundApiFixture implements TransportInterface
 function wc_transaction_query($command, $force = false) { $GLOBALS['wpdb']->transactionCommand($command, $force); }
 function wc_get_price_decimals() { return 2; }
 function wp_generate_uuid4() { return sprintf('00000000-0000-4000-8000-%012d', ++$GLOBALS['refund_uuid']); }
+function wp_create_nonce($action) { return 'fixture-nonce'; }
+function wp_register_script($handle, $source, $dependencies = array(), $version = false, $footer = false) {}
+function wp_enqueue_script($handle) {}
+function wp_add_inline_script($handle, $script, $position = 'after') { $GLOBALS['refund_panel_scripts'][$handle] = $script; }
+function wp_json_encode($value) { return json_encode($value); }
+function esc_js($text) { return addslashes($text); }
 function get_comment($id) { return $GLOBALS['refund_comments'][$id] ?? null; }
 
 function WC()
@@ -1204,7 +1213,7 @@ function refund_test_schema_identifier_is_prepared_and_failed_creation_can_retry
     assertSameValue('1', get_option(RefundIntentStore::SCHEMA_OPTION, ''), 'A later successful retry marks the existing schema ready.');
 }
 
-function refund_test_invoice_without_refund_summary_derives_summary_and_submits()
+function refund_test_invoice_without_refund_summary_keeps_amounts_unknown_and_submits()
 {
     $adapter = refund_setup($api, $store, $config);
     unset($api->invoice['refund_summary']);
@@ -1213,10 +1222,78 @@ function refund_test_invoice_without_refund_summary_derives_summary_and_submits(
     $summary = $adapter->summary('100');
     assertSameValue(true, $summary['can_refund_full'], 'Paid-over invoice without refund_summary allows full refund.');
     assertSameValue(true, $summary['can_refund_overpayment'], 'Paid-over invoice without refund_summary allows overpayment refund.');
-    assertSameValue('120', $summary['full_refund_amount'], 'Paid amount is used when refund_summary is omitted.');
+    assertSameValue(null, $summary['full_refund_amount'], 'Gross cannot establish the remaining full refund without the server summary.');
+    assertSameValue(null, $summary['overpayment_refund_amount'], 'Gross must not be shown as the remaining overpayment refund.');
     $intent = $adapter->request('100', 'overpayment', 'no-summary-over-001', array());
     assertSameValue('created', $intent->cashState(), 'Overpayment refund succeeds when invoice omits refund_summary.');
     assertSameValue(1, count($api->posts()), 'POST /v1/refunds was called.');
+}
+
+function refund_test_panel_provides_uncertainty_label_for_unknown_refund_amounts()
+{
+    refund_setup($api);
+    $GLOBALS['refund_panel_scripts'] = array();
+    ob_start();
+    try { RefundAdapter::panel(wc_get_order(100)); } finally { $html = ob_get_clean(); }
+    assertTrueValue(strpos($html, 'paymos-refund-summary') !== false, 'The refund panel must render its summary surface.');
+    $script = $GLOBALS['refund_panel_scripts']['paymos-woocommerce-refunds'];
+    preg_match('/var p=(\{.*?\});/s', $script, $match);
+    $settings = json_decode($match[1], true);
+    assertSameValue('Calculated by Paymos before the refund is sent.', $settings['calculated'], 'Unknown refund amounts receive an explicit uncertainty label.');
+    assertSameValue(array('full', 'overpayment'), array_keys($settings['tokens']), 'Both refund actions retain their durable request tokens.');
+}
+
+function refund_test_fallback_after_known_overpayment_refund_disables_repeat_but_keeps_full()
+{
+    foreach (array('local', 'external') as $origin) {
+        $adapter = refund_setup($api, $store);
+        $api->status = 'completed';
+        if ($origin === 'local') {
+            $intent = $adapter->request('100', 'overpayment', 'known-overpayment-local01', array());
+            assertSameValue('applied', $intent->projectionState(), 'The known local overpayment must actually complete.');
+        } else {
+            $wire = refund_external_wire();
+            $api->refunds['dashboard-key'] = $wire;
+            $adapter->observeExternal($wire, 'sandbox');
+            assertSameValue(0, count($api->posts()), 'Observing external completion must not submit cash.');
+        }
+        unset($api->invoice['refund_summary']);
+        $summary = $adapter->summary('100');
+        assertSameValue(false, $summary['can_refund_overpayment'], 'A known completed overpayment must not offer another fallback overpayment action.');
+        assertSameValue(true, $summary['can_refund_full'], 'The original order can still receive a full refund.');
+        assertSameValue(null, $summary['full_refund_amount'], 'Completed cash does not prove the exact remaining refund balance.');
+        assertSameValue(null, $summary['overpayment_refund_amount'], 'Fallback must not invent remaining overpayment.');
+        $api->invoice['refund_summary'] = array('can_refund_full' => true, 'can_refund_overpayment' => true,
+            'full_refund_amount' => '103', 'overpayment_refund_amount' => '3');
+        assertSameValue($api->invoice['refund_summary'], $adapter->summary('100'), 'Fresh server eligibility is authoritative even after a previous overpayment refund.');
+        unset($api->invoice['refund_summary']);
+        $full = $adapter->request('100', 'full', 'remaining-full-refund001', refund_full_input());
+        assertSameValue('100', $full->observation()->principalDecimal(), 'The server still calculates and returns the remaining full amount.');
+        assertSameValue('100', wc_get_order(100)->get_total_refunded(), 'Full native refund remains the original order total.');
+    }
+}
+
+function refund_test_transient_preflight_preserves_retryable_intent_and_key()
+{
+    foreach (array(new RuntimeException('read timeout'), 503, 429) as $failure) {
+        $adapter = refund_setup($api, $store);
+        $api->invoiceFailure = $failure;
+        $intent = $adapter->request('100', 'full', 'preflight-retry-token01', refund_full_input());
+        assertSameValue('not_submitted', $intent->cashState(), 'Preflight read failure must be retryable.');
+        assertSameValue('none', $intent->projectionState(), 'No native review for unavailable read.');
+        assertSameValue(0, count($api->posts()), 'No cash POST before successful read.');
+        $api->invoiceFailure = null;
+        $recovered = $adapter->request('100', 'full', 'preflight-retry-token01', refund_full_input());
+        assertSameValue('created', $recovered->cashState(), 'Same intent succeeds after API recovery.');
+        assertSameValue($intent->externalOrderId(), $recovered->externalOrderId(), 'Recovery reuses original key.');
+        assertSameValue($intent->operationId(), $recovered->operationId(), 'Recovery reuses saved operation.');
+        assertSameValue(1, count($api->posts()), 'Only one cash POST after successful preflight.');
+    }
+    $adapter = refund_setup($api, $store);
+    $api->invoiceFailure = 401;
+    $intent = $adapter->request('100', 'full', 'preflight-denied-token01', refund_full_input());
+    assertSameValue('review', $intent->cashState(), 'Definitive authorization refusal remains blocked.');
+    assertSameValue(0, count($api->posts()), 'Denied preflight cannot send cash.');
 }
 
 $refundCount = 0;

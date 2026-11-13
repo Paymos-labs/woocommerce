@@ -83,6 +83,10 @@ final class WebhookController
         } catch (TimestampSkewException $e) {
             Logger::error('Paymos webhook timestamp skew.');
             return new \WP_REST_Response(array('error' => 'bad_timestamp'), 401);
+        } catch (EventStorageException $e) {
+            try { $eventStore->release(); } catch (\Throwable $releaseError) { /* Preserve the storage failure. */ }
+            Logger::error('Paymos event storage failed: ' . $e->getMessage());
+            return new \WP_REST_Response(array('error' => 'storage_failed'), 500);
         } catch (\Throwable $e) {
             try { $eventStore->release(); } catch (\RuntimeException $releaseError) { /* Keep the original retryable failure. */ }
             Logger::error('Paymos webhook processing failed: ' . $e->getMessage());
@@ -112,6 +116,23 @@ final class WebhookController
             $order = FreshOrder::load((int) $matches[1], $lock);
             if (!$order) {
                 throw new \RuntimeException('Woo order for Paymos external order id was not found.');
+            }
+            // An unbound current intent still needs exact POST recovery below.
+            // The durable external ID distinguishes generations, even before their invoice ID is known.
+            if ($eventObject->type() === 'invoice.paid_late'
+                && self::orderMeta($order, '_paymos_external_order_id') !== $externalOrderId) {
+                if ($order->get_payment_method() !== 'paymos') {
+                    throw new \RuntimeException('Woo order no longer belongs to Paymos.');
+                }
+                $binding = CreationIntent::historicalBinding($order, $eventObject->invoiceId());
+                if (($binding['environment'] ?? '') !== $environment
+                    || ($binding['external_order_id'] ?? '') !== $externalOrderId
+                    || !(new InvoiceReverseVerifier(self::client($environment)))->verify($eventObject, $binding)->isVerified()) {
+                    throw new \RuntimeException('Paymos historical invoice verification failed.');
+                }
+                $lock->assertOwned();
+                (new OrderMapper())->apply($order, $event, false, $lock);
+                return;
             }
             $storedExternalOrderId = method_exists($order, 'get_meta')
                 ? (string) $order->get_meta('_paymos_external_order_id', true)

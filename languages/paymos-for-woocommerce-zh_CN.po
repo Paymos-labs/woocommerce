@@ -341,3 +341,63 @@ msgstr "商家需要先审核这笔订单，之后才能继续付款。请联系
 #: includes/OrderMapper.php:305
 msgid "Paymos: the customer finished paying for this order after the invoice closed. Check stock, then fulfil the order manually or refund the payment."
 msgstr "Paymos：这笔订单在账单关闭后才付清。请核对库存，再手动完成订单或向买家退款。"
+
+#. Payment/refund interface
+msgid "Calculated by Paymos before the refund is sent."
+msgstr "Paymos 将在发送退款前计算金额。"
+
+#. Payment/refund interface
+msgid "Every minute"
+msgstr "每分钟"
+
+#. Payment/refund interface
+msgid "Full refund:"
+msgstr "全额退款："
+
+#. Payment/refund interface
+msgid "Nothing was refunded. Open the order in WooCommerce admin and refund it there."
+msgstr "尚未退款。请在 WooCommerce 后台打开订单并办理退款。"
+
+#. Payment/refund interface
+msgid "Overpayment:"
+msgstr "多付金额："
+
+#. Payment/refund interface
+msgid "Paymos is waiting for the payment again — a confirmed transfer was rolled back on-chain."
+msgstr "已确认的转账在链上被回滚，Paymos 正在重新等待付款。"
+
+#. Payment/refund interface
+msgid "Paymos overpayment refund completed. The order stays paid and stock is unchanged."
+msgstr "Paymos 已退还多付金额。订单仍为已付款，库存不变。"
+
+#. Payment/refund interface
+msgid "Paymos received only part of the payment. %1$s %2$s is still outstanding — the order stays on hold until the customer sends the rest."
+msgstr "Paymos 仅收到部分付款。尚欠 %1$s %2$s，订单将保持待处理状态，直到买家付清余款。"
+
+#. Payment/refund interface
+msgid "Paymos refunds"
+msgstr "Paymos 退款"
+
+#. Payment/refund interface
+msgid "Paymos refunds could not be loaded. Reload the page to try again."
+msgstr "无法加载 Paymos 退款。请刷新页面后重试。"
+
+#. Payment/refund interface
+msgid "Refund"
+msgstr "退款"
+
+#. Payment/refund interface
+msgid "Refund overpayment"
+msgstr "退还多付金额"
+
+#. Payment/refund interface
+msgid "Refund requested. The order is updated when the refund completes."
+msgstr "已申请退款。退款完成后将更新订单。"
+
+#. Payment/refund interface
+msgid "The refund was not started. With Debug logging on, the reason is written to the WooCommerce logs."
+msgstr "退款未发起。启用调试日志后，可在 WooCommerce 日志中查看原因。"
+
+#. Payment/refund interface
+msgid "You do not have permission to refund this order."
+msgstr "您无权为此订单退款。"

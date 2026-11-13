@@ -337,3 +337,63 @@ msgstr "Магазину нужно проверить этот заказ, пр
 #: includes/OrderMapper.php:305
 msgid "Paymos: the customer finished paying for this order after the invoice closed. Check stock, then fulfil the order manually or refund the payment."
 msgstr "Paymos: пришла полная оплата с опозданием. Проверьте склад: выдайте заказ вручную или верните деньги."
+
+#. Payment/refund interface
+msgid "Calculated by Paymos before the refund is sent."
+msgstr "Paymos рассчитает сумму перед отправкой возврата."
+
+#. Payment/refund interface
+msgid "Every minute"
+msgstr "Каждую минуту"
+
+#. Payment/refund interface
+msgid "Full refund:"
+msgstr "Полный возврат:"
+
+#. Payment/refund interface
+msgid "Nothing was refunded. Open the order in WooCommerce admin and refund it there."
+msgstr "Возврат не выполнен. Откройте заказ в панели WooCommerce и оформите возврат там."
+
+#. Payment/refund interface
+msgid "Overpayment:"
+msgstr "Переплата:"
+
+#. Payment/refund interface
+msgid "Paymos is waiting for the payment again — a confirmed transfer was rolled back on-chain."
+msgstr "Paymos снова ждёт оплату: подтверждённый перевод отменён в блокчейне."
+
+#. Payment/refund interface
+msgid "Paymos overpayment refund completed. The order stays paid and stock is unchanged."
+msgstr "Paymos вернул переплату. Заказ остаётся оплаченным, остатки на складе не изменились."
+
+#. Payment/refund interface
+msgid "Paymos received only part of the payment. %1$s %2$s is still outstanding — the order stays on hold until the customer sends the rest."
+msgstr "Paymos получил часть оплаты. Осталось доплатить %1$s %2$s. Заказ будет ожидать оплаты, пока покупатель не внесёт остаток."
+
+#. Payment/refund interface
+msgid "Paymos refunds"
+msgstr "Возвраты Paymos"
+
+#. Payment/refund interface
+msgid "Paymos refunds could not be loaded. Reload the page to try again."
+msgstr "Не удалось загрузить возвраты Paymos. Обновите страницу и попробуйте снова."
+
+#. Payment/refund interface
+msgid "Refund"
+msgstr "Возврат"
+
+#. Payment/refund interface
+msgid "Refund overpayment"
+msgstr "Вернуть переплату"
+
+#. Payment/refund interface
+msgid "Refund requested. The order is updated when the refund completes."
+msgstr "Возврат запрошен. Заказ обновится после завершения возврата."
+
+#. Payment/refund interface
+msgid "The refund was not started. With Debug logging on, the reason is written to the WooCommerce logs."
+msgstr "Не удалось начать возврат. Если включено журналирование отладки, причина записана в журнале WooCommerce."
+
+#. Payment/refund interface
+msgid "You do not have permission to refund this order."
+msgstr "У вас нет прав на возврат по этому заказу."

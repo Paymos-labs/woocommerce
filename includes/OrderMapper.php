@@ -46,22 +46,11 @@ final class OrderMapper
         // Read before recordEvent(): the status this order already reached for
         // its current invoice.
         $previousStatus = method_exists($order, 'get_meta') ? (string) $order->get_meta('_paymos_last_status', true) : '';
-        if (in_array($order->get_status(), array('refunded'), true)) {
-            return;
-        }
-        $this->recordEvent($order, $event, $eventType);
-
         $status = isset($event['data']['status']) && is_scalar($event['data']['status'])
             ? (string) $event['data']['status']
             : null;
 
         $action = StatusMapper::invoiceAction($eventType, $status);
-        if ($order->is_paid() && $this->wouldRollBackPaidOrder($action)) {
-            $order->add_order_note(__('Paymos ignored a stale invoice status after payment completed.', 'paymos-for-woocommerce'));
-            $this->save($order);
-            return;
-        }
-
         // invoice-late-payment: money crossed the invoice's total AFTER it had closed. The order keeps
         // its terminal decision — one native note, idempotent per invoice, decided BEFORE the
         // final-status guard below (a late event by definition arrives after a terminal status; the
@@ -69,6 +58,23 @@ final class OrderMapper
         if ($action === StatusMapper::ACTION_NOTE_PAID_LATE) {
             $this->addPaidLateNote($order, $event);
             $this->save($order);
+            return;
+        }
+
+        if ($order->get_status() === 'refunded') {
+            return;
+        }
+        if ($order->is_paid()) {
+            // Native completion may have succeeded before its metadata save failed.
+            // A verified paid retry can finish that projection without paying twice.
+            if ($action === StatusMapper::ACTION_PAYMENT_COMPLETE
+                && !StatusMapper::isFinalStatus($previousStatus)
+                && OrderAmountGuard::isSafeToComplete($order, $event)) {
+                $this->recordEvent($order, $event, $eventType);
+                $this->recordStatus($order, $event);
+                $order->update_meta_data('_paymos_applied_paid_invoice_id', $this->fallbackTransactionId($event));
+                $this->save($order);
+            }
             return;
         }
 
@@ -82,10 +88,10 @@ final class OrderMapper
                 'final_status' => $previousStatus,
                 'event_type' => $eventType,
             ));
-            $this->save($order);
             return;
         }
 
+        $this->recordEvent($order, $event, $eventType);
         switch ($action) {
             case StatusMapper::ACTION_CONFIRMING:
                 if (!$order->is_paid()) {
@@ -313,16 +319,6 @@ final class OrderMapper
         }
     }
 
-    private function wouldRollBackPaidOrder($action)
-    {
-        return in_array($action, array(
-            StatusMapper::ACTION_CONFIRMING,
-            StatusMapper::ACTION_AWAITING_PAYMENT,
-            StatusMapper::ACTION_FAIL_ORDER,
-            StatusMapper::ACTION_CANCEL_ORDER,
-        ), true);
-    }
-
     /**
      * invoice-late-payment: the one allowed effect of a late payment on the order — a native note.
      * Idempotent per invoice: the marker lands only after the note was actually accepted, so a
@@ -354,7 +350,7 @@ final class OrderMapper
             Logger::info('Paymos paid-late note was rejected; no marker recorded.', array(
                 'invoice_id' => $invoiceId,
             ));
-            return;
+            throw new \RuntimeException('Paymos paid-late note could not be saved.');
         }
 
         $order->update_meta_data($marker, isset($event['event_id']) && is_scalar($event['event_id'])

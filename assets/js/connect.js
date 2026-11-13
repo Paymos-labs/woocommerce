@@ -9,8 +9,9 @@
   // the user code shown there are the only remaining way to finish the connection.
   var awaitingManualApproval = false;
 
-  function post(action) {
+  function post(action, flowId) {
     var body = new URLSearchParams({ action: action, nonce: config.nonce });
+    if (flowId) body.set('flow_id', flowId);
     return fetch(config.ajaxUrl, {
       method: 'POST',
       credentials: 'same-origin',
@@ -53,11 +54,18 @@
     node.appendChild(code);
   }
 
-  function poll(interval) {
+  function terminalError(message) {
+    awaitingManualApproval = false;
+    status(message, true, true);
+    var button = document.getElementById('paymos-connect-button');
+    if (button) button.disabled = false;
+  }
+
+  function poll(interval, flowId) {
     window.setTimeout(function check() {
-      post(config.pollAction).then(function (response) {
+      post(config.pollAction, flowId).then(function (response) {
         if (!response.success) {
-          status((response.data && response.data.message) || config.messages.failed, true);
+          terminalError((response.data && response.data.message) || config.messages.failed);
           return;
         }
         if (response.data.status === 'connected') {
@@ -68,7 +76,7 @@
         }
         status(config.messages.waiting, false);
         window.setTimeout(check, response.data.status === 'slow_down' ? interval + 5000 : interval);
-      }).catch(function () { status(config.messages.failed, true); });
+      }).catch(function () { terminalError(config.messages.failed); });
     }, interval);
   }
 
@@ -99,11 +107,10 @@
       } else {
         manualApproval(response.data.verification_url, response.data.user_code);
       }
-      poll(Math.max(1, Number(response.data.interval || 5)) * 1000);
+      poll(Math.max(1, Number(response.data.interval || 5)) * 1000, response.data.flow_id);
     }).catch(function (error) {
       if (tab && !tab.closed) tab.close();
-      status(error.message || config.messages.failed, true, true);
-      button.disabled = false;
+      terminalError(error.message || config.messages.failed);
     });
   });
 })();

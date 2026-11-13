@@ -337,3 +337,63 @@ msgstr "Bu siparişi önce mağaza incelemeli, ödemeye ancak sonra devam edebil
 #: includes/OrderMapper.php:305
 msgid "Paymos: the customer finished paying for this order after the invoice closed. Check stock, then fulfil the order manually or refund the payment."
 msgstr "Paymos: Müşteri bu siparişin ödemesini gecikmeyle tamamladı. Stoku kontrol edin, sonra siparişi elle teslim edin ya da ödemeyi iade edin."
+
+#. Payment/refund interface
+msgid "Calculated by Paymos before the refund is sent."
+msgstr "Tutar, iade gönderilmeden önce Paymos tarafından hesaplanır."
+
+#. Payment/refund interface
+msgid "Every minute"
+msgstr "Her dakika"
+
+#. Payment/refund interface
+msgid "Full refund:"
+msgstr "Tam iade:"
+
+#. Payment/refund interface
+msgid "Nothing was refunded. Open the order in WooCommerce admin and refund it there."
+msgstr "İade yapılmadı. Siparişi WooCommerce yönetim panelinde açıp iadeyi oradan başlatın."
+
+#. Payment/refund interface
+msgid "Overpayment:"
+msgstr "Fazla ödeme:"
+
+#. Payment/refund interface
+msgid "Paymos is waiting for the payment again — a confirmed transfer was rolled back on-chain."
+msgstr "Onaylanmış transfer blokzincirde geri alındığı için Paymos yeniden ödeme bekliyor."
+
+#. Payment/refund interface
+msgid "Paymos overpayment refund completed. The order stays paid and stock is unchanged."
+msgstr "Paymos fazla ödemeyi iade etti. Sipariş ödendi durumunda kalır, stok değişmez."
+
+#. Payment/refund interface
+msgid "Paymos received only part of the payment. %1$s %2$s is still outstanding — the order stays on hold until the customer sends the rest."
+msgstr "Paymos ödemenin bir kısmını aldı. Kalan %1$s %2$s ödenene kadar sipariş beklemede kalır."
+
+#. Payment/refund interface
+msgid "Paymos refunds"
+msgstr "Paymos iadeleri"
+
+#. Payment/refund interface
+msgid "Paymos refunds could not be loaded. Reload the page to try again."
+msgstr "Paymos iadeleri yüklenemedi. Sayfayı yenileyip tekrar deneyin."
+
+#. Payment/refund interface
+msgid "Refund"
+msgstr "İade"
+
+#. Payment/refund interface
+msgid "Refund overpayment"
+msgstr "Fazla ödemeyi iade et"
+
+#. Payment/refund interface
+msgid "Refund requested. The order is updated when the refund completes."
+msgstr "İade talebi alındı. İade tamamlanınca sipariş güncellenir."
+
+#. Payment/refund interface
+msgid "The refund was not started. With Debug logging on, the reason is written to the WooCommerce logs."
+msgstr "İade başlatılmadı. Hata ayıklama günlüğü açıksa nedeni WooCommerce günlüklerine yazılır."
+
+#. Payment/refund interface
+msgid "You do not have permission to refund this order."
+msgstr "Bu sipariş için iade yapma yetkiniz yok."

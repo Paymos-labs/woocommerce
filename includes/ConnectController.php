@@ -54,14 +54,16 @@ final class ConnectController
 
     public static function start()
     {
+        check_ajax_referer(self::NONCE_ACTION, 'nonce');
         self::authorizeAjax();
         try {
             $state = self::client()->start('woocommerce', self::sourceUrl(), self::settingsUrl());
-            ConnectStateStore::save($state);
+            $flowId = ConnectStateStore::save($state);
             wp_send_json_success(array(
                 'verification_url' => $state['verification_url'],
                 'user_code' => $state['user_code'],
                 'interval' => $state['interval'],
+                'flow_id' => $flowId,
             ));
         } catch (\Throwable $exception) {
             wp_send_json_error(array('message' => $exception->getMessage()), 400);
@@ -70,10 +72,18 @@ final class ConnectController
 
     public static function poll()
     {
+        check_ajax_referer(self::NONCE_ACTION, 'nonce');
         self::authorizeAjax();
+        $flowId = isset($_POST['flow_id']) && is_string($_POST['flow_id'])
+            ? sanitize_text_field(wp_unslash($_POST['flow_id'])) : '';
+        // A generated hex token needs no normalization: never accept a different raw value.
+        if ($flowId !== '' && ($_POST['flow_id'] !== $flowId || preg_match('/\A[a-f0-9]{32}\z/', $flowId) !== 1)) {
+            $flowId = '';
+        }
         try {
             $state = ConnectStateStore::load();
-            if (!isset($state['device_code'])) {
+            if (!isset($state['device_code'], $state['flow_id']) || $flowId === ''
+                || !hash_equals($state['flow_id'], $flowId)) {
                 throw new \RuntimeException('No active Paymos connection request.');
             }
 
@@ -83,27 +93,29 @@ final class ConnectController
                     || rtrim((string) $result['source_url'], '/') !== self::sourceUrl()) {
                     throw new \RuntimeException('Paymos connection response does not match this store.');
                 }
-                CredentialStore::save($result['credentials']);
-                ConnectStateStore::clear();
+                if (!ConnectStateStore::complete($flowId, $result['credentials'])) {
+                    throw new \RuntimeException('Paymos connection request was replaced.');
+                }
                 Config::reset_cache();
                 wp_send_json_success(array('status' => 'connected'));
+                return;
             }
 
             if ($result['status'] === 'authorization_pending' || $result['status'] === 'slow_down') {
                 wp_send_json_success(array('status' => $result['status']));
+                return;
             }
 
-            ConnectStateStore::clear();
+            ConnectStateStore::clear($flowId);
             wp_send_json_error(array('message' => 'Paymos connection was denied or expired.'), 409);
         } catch (\Throwable $exception) {
-            ConnectStateStore::clear();
+            try { ConnectStateStore::clear($flowId); } catch (\Throwable $cleanupError) { /* Preserve the original failure. */ }
             wp_send_json_error(array('message' => $exception->getMessage()), 400);
         }
     }
 
     private static function authorizeAjax()
     {
-        check_ajax_referer(self::NONCE_ACTION, 'nonce');
         if (!current_user_can('manage_woocommerce')) {
             wp_send_json_error(array('message' => 'Access denied.'), 403);
         }

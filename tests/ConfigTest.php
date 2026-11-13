@@ -146,3 +146,10 @@ function test_tampered_credential_envelope_fails_closed()
     assertSameValue(array(), Config::environment_config('sandbox'), 'tampered ciphertext must not expose credentials.');
     assertTrueValue(Config::credential_error() !== '', 'tampered ciphertext must produce an admin-safe storage error.');
 }
+
+function test_woocommerce_sdk_dependency_preserves_supported_retry_contract()
+{
+    $manifest = json_decode((string) file_get_contents(dirname(__DIR__) . '/composer.json'), true);
+    // ^1.10.0 means >=1.10.0 <2.0.0: old SDKs lack PREFLIGHT_RETRY.
+    assertSameValue('^1.10.0', $manifest['require']['paymos/php-sdk'], 'Require the first SDK with transient preflight retry, without admitting the next major.');
+}

@@ -249,9 +249,16 @@ function absint($value)
     return abs((int) $value);
 }
 
+class PaymosTestAjaxExit extends RuntimeException {}
+
 function check_ajax_referer($action, $queryArg = false, $stop = true)
 {
-    return $GLOBALS['paymos_test_ajax_nonce_valid'] ?? true;
+    $GLOBALS['paymos_test_ajax_nonce_checks'][] = array($action, $queryArg, $stop);
+    $valid = $GLOBALS['paymos_test_ajax_nonce_valid'] ?? true;
+    if (!$valid && $stop) {
+        throw new PaymosTestAjaxExit('Invalid AJAX nonce.', 403);
+    }
+    return $valid;
 }
 
 function wp_send_json($response, $statusCode = null)
@@ -263,6 +270,9 @@ function wp_send_json($response, $statusCode = null)
 function wp_send_json_error($data = null, $statusCode = null)
 {
     wp_send_json(array('success' => false, 'data' => $data), $statusCode);
+    if (!empty($GLOBALS['paymos_test_terminate_json_errors'])) {
+        throw new PaymosTestAjaxExit('AJAX error response ended the request.', $statusCode ?? 200);
+    }
 }
 
 function wp_send_json_success($data = null, $statusCode = null)
@@ -405,6 +415,8 @@ function paymos_reset_test_state()
     $GLOBALS['paymos_test_http_requests'] = array();
     $GLOBALS['paymos_test_capabilities'] = array();
     $GLOBALS['paymos_test_ajax_nonce_valid'] = true;
+    $GLOBALS['paymos_test_ajax_nonce_checks'] = array();
+    $GLOBALS['paymos_test_terminate_json_errors'] = false;
     $GLOBALS['paymos_test_json_response'] = null;
     $GLOBALS['paymos_test_json_status'] = null;
     $_POST = array();
@@ -477,3 +489,5 @@ function remove_filter($hook, $callback, $priority = 10) { foreach ($GLOBALS['pa
 function wp_unschedule_hook($hook) { $GLOBALS['paymos_cleared_hooks'][] = $hook; return 1; }
 
 function clean_post_cache($orderId) { $GLOBALS['paymos_cleaned_post_cache'][] = $orderId; }
+
+function wp_cache_delete($key, $group = '') { return true; }

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace PaymosWooCommerce;
 
 use Paymos\Plugin\WordPressEncryptedOption;
+use Paymos\Plugin\WordPressOrderLock;
 
 defined('ABSPATH') || exit;
 
@@ -19,14 +20,19 @@ final class ConnectStateStore
             throw new \InvalidArgumentException('Paymos connection state is incomplete.');
         }
         $state['expires_at'] = (int) $state['started_at'] + (int) $state['expires_in'];
-        WordPressEncryptedOption::save(
-            self::OPTION_KEY,
-            self::AAD,
-            array('schema' => 1, 'state' => $state)
-        );
+        $state['flow_id'] = bin2hex(random_bytes(16));
+        return self::locked(static function () use ($state) {
+            WordPressEncryptedOption::save(self::OPTION_KEY, self::AAD, array('schema' => 1, 'state' => $state));
+            return $state['flow_id'];
+        });
     }
 
     public static function load()
+    {
+        return self::locked(static function () { return self::read(); });
+    }
+
+    private static function read()
     {
         $payload = WordPressEncryptedOption::load(self::OPTION_KEY, self::AAD);
         if (count($payload) === 0) {
@@ -39,14 +45,53 @@ final class ConnectStateStore
         }
         $state = $payload['state'];
         if (!isset($state['expires_at']) || time() >= (int) $state['expires_at']) {
-            self::clear();
+            WordPressEncryptedOption::delete(self::OPTION_KEY);
             return array();
         }
         return $state;
     }
 
-    public static function clear()
+    public static function clear($flowId)
     {
-        WordPressEncryptedOption::delete(self::OPTION_KEY);
+        return self::finish($flowId, null);
+    }
+
+    public static function complete($flowId, array $credentials)
+    {
+        return self::finish($flowId, $credentials);
+    }
+
+    private static function finish($flowId, $credentials)
+    {
+        return self::locked(static function () use ($flowId, $credentials) {
+            $state = self::read();
+            if (!is_string($flowId) || $flowId === '' || !isset($state['flow_id'])
+                || !hash_equals($state['flow_id'], $flowId)) {
+                return false;
+            }
+            if ($credentials !== null) {
+                CredentialStore::save($credentials);
+            }
+            WordPressEncryptedOption::delete(self::OPTION_KEY);
+            return true;
+        });
+    }
+
+    private static function locked(callable $operation)
+    {
+        $lock = new WordPressOrderLock('woocommerce-connect', self::OPTION_KEY);
+        if (!$lock->acquire()) {
+            throw new \RuntimeException('Paymos connection state is busy.');
+        }
+        try {
+            // A previous poll may have cached the old option before a new start.
+            wp_cache_delete(self::OPTION_KEY, 'options');
+            wp_cache_delete('alloptions', 'options');
+            wp_cache_delete('notoptions', 'options');
+            $lock->assertOwned();
+            return $operation();
+        } finally {
+            $lock->release();
+        }
     }
 }

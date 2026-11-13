@@ -65,7 +65,7 @@ function home_url($path = '')
 
 function paymos_test_connect_credentials(array $credentials)
 {
-    PaymosWooCommerce\ConnectStateStore::save(paymos_test_connect_state());
+    $_POST['flow_id'] = PaymosWooCommerce\ConnectStateStore::save(paymos_test_connect_state());
     $requests = 0;
     $GLOBALS['paymos_test_remote_handler'] = static function ($url, array $args) use ($credentials, &$requests) {
         $requests++;

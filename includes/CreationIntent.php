@@ -19,6 +19,7 @@ final class CreationIntent
         if (!in_array($environment, array('sandbox', 'live'), true)) {
             throw new \RuntimeException('Paymos invoice intent environment is invalid.');
         }
+        self::archiveBinding($order, $lock);
         $order->update_meta_data('_paymos_creation_payload', $payload);
         $order->update_meta_data('_paymos_external_order_id', $payload['external_order_id']);
         $order->update_meta_data('_paymos_project_id', $payload['project_id']);
@@ -56,6 +57,39 @@ final class CreationIntent
             throw new \RuntimeException('Paymos pending invoice amount differs.');
         }
         return $payload;
+    }
+
+    /** Preserve the approved identity before replacing the current generation. */
+    private static function archiveBinding($order, WordPressOrderLock $lock)
+    {
+        $invoiceId = (string) $order->get_meta('_paymos_invoice_id', true);
+        if ($invoiceId === '') {
+            return;
+        }
+        $binding = array('invoice_id' => $invoiceId);
+        foreach (array('external_order_id', 'project_id', 'environment', 'invoice_amount', 'invoice_currency') as $field) {
+            $value = (string) $order->get_meta('_paymos_' . $field, true);
+            if ($value === '') {
+                throw new \RuntimeException('Paymos previous invoice binding is incomplete.');
+            }
+            $binding[str_replace('invoice_', '', $field)] = $value;
+        }
+        $history = $order->get_meta('_paymos_invoice_history', true);
+        if ($history !== '' && !is_array($history)) {
+            throw new \RuntimeException('Paymos invoice binding history is invalid.');
+        }
+        $history = is_array($history) ? $history : array();
+        $history[$invoiceId] = $binding;
+        $order->update_meta_data('_paymos_invoice_history', $history);
+        // Persist before changing any current binding field; partial saves cannot lose A.
+        self::save($order, $lock);
+    }
+
+    public static function historicalBinding($order, $invoiceId)
+    {
+        $history = $order->get_meta('_paymos_invoice_history', true);
+        return is_array($history) && isset($history[$invoiceId]) && is_array($history[$invoiceId])
+            ? $history[$invoiceId] : array();
     }
 
     public static function matches($order, array $payload, $environment)

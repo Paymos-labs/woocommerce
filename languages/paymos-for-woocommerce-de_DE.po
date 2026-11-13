@@ -238,3 +238,63 @@ msgstr "Bevor Sie weiter bezahlen können, muss der Shop diese Bestellung prüfe
 #: includes/OrderMapper.php:305
 msgid "Paymos: the customer finished paying for this order after the invoice closed. Check stock, then fulfil the order manually or refund the payment."
 msgstr "Paymos: Die Zahlung für diese Bestellung ist vollständig, aber verspätet eingegangen. Prüfen Sie den Lagerbestand und liefern Sie die Bestellung von Hand aus — oder erstatten Sie den Betrag."
+
+#. Payment/refund interface
+msgid "Calculated by Paymos before the refund is sent."
+msgstr "Paymos berechnet den Betrag vor dem Versand der Erstattung."
+
+#. Payment/refund interface
+msgid "Every minute"
+msgstr "Jede Minute"
+
+#. Payment/refund interface
+msgid "Full refund:"
+msgstr "Vollständige Erstattung:"
+
+#. Payment/refund interface
+msgid "Nothing was refunded. Open the order in WooCommerce admin and refund it there."
+msgstr "Es wurde nichts erstattet. Öffnen Sie die Bestellung in der WooCommerce-Verwaltung und erstatten Sie dort."
+
+#. Payment/refund interface
+msgid "Overpayment:"
+msgstr "Überzahlung:"
+
+#. Payment/refund interface
+msgid "Paymos is waiting for the payment again — a confirmed transfer was rolled back on-chain."
+msgstr "Paymos wartet erneut auf die Zahlung: Eine bestätigte Übertragung wurde in der Blockchain zurückgenommen."
+
+#. Payment/refund interface
+msgid "Paymos overpayment refund completed. The order stays paid and stock is unchanged."
+msgstr "Die Überzahlung wurde über Paymos erstattet. Die Bestellung bleibt bezahlt, der Bestand bleibt unverändert."
+
+#. Payment/refund interface
+msgid "Paymos received only part of the payment. %1$s %2$s is still outstanding — the order stays on hold until the customer sends the rest."
+msgstr "Paymos hat nur einen Teil der Zahlung erhalten. Es fehlen noch %1$s %2$s. Die Bestellung bleibt bis zur Restzahlung zurückgestellt."
+
+#. Payment/refund interface
+msgid "Paymos refunds"
+msgstr "Paymos-Erstattungen"
+
+#. Payment/refund interface
+msgid "Paymos refunds could not be loaded. Reload the page to try again."
+msgstr "Die Paymos-Erstattungen konnten nicht geladen werden. Laden Sie die Seite neu und versuchen Sie es erneut."
+
+#. Payment/refund interface
+msgid "Refund"
+msgstr "Erstattung"
+
+#. Payment/refund interface
+msgid "Refund overpayment"
+msgstr "Überzahlung erstatten"
+
+#. Payment/refund interface
+msgid "Refund requested. The order is updated when the refund completes."
+msgstr "Die Erstattung wurde angefordert. Die Bestellung wird nach Abschluss der Erstattung aktualisiert."
+
+#. Payment/refund interface
+msgid "The refund was not started. With Debug logging on, the reason is written to the WooCommerce logs."
+msgstr "Die Erstattung wurde nicht gestartet. Bei aktivierter Debug-Protokollierung steht der Grund im WooCommerce-Protokoll."
+
+#. Payment/refund interface
+msgid "You do not have permission to refund this order."
+msgstr "Sie haben keine Berechtigung, diese Bestellung zu erstatten."

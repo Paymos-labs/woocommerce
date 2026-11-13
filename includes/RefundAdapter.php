@@ -166,7 +166,17 @@ final class RefundAdapter implements NativeRefundProjectorInterface
         $reason = $this->localPreflight($intent);
         if ($reason !== null) { return $reason; }
         try {
-            $invoice = $this->client($intent->environment())->invoices()->get($intent->invoiceId());
+            $client = $this->client($intent->environment());
+            try {
+                $invoice = $client->invoices()->get($intent->invoiceId());
+            } catch (\Paymos\Exception\ApiException $error) {
+                if ($error->statusCode() === 429 || $error->statusCode() >= 500) {
+                    return NativeRefundProjectorInterface::PREFLIGHT_RETRY;
+                }
+                throw $error;
+            } catch (\RuntimeException $error) {
+                return NativeRefundProjectorInterface::PREFLIGHT_RETRY;
+            }
             $this->store->assertOwned();
             $this->assertInvoice($invoice, $intent);
             $fresh = $this->store->loadOrder();
@@ -559,6 +569,19 @@ final class RefundAdapter implements NativeRefundProjectorInterface
                 || !isset($config['refund_contract_version']) || $config['refund_contract_version'] !== 1) { $blocked = true; }
             foreach ($this->store->forPayment((string) $order->get_id()) as $intent) {
                 if ($this->store->blocksNewIntent($intent)) { $blocked = true; }
+                if (!array_key_exists('refund_summary', $invoice) && $intent->invoiceId() === $invoice['invoice_id']
+                    && $intent->mode() === RefundStates::OVERPAYMENT && $intent->cashState() === RefundStates::COMPLETED) {
+                    $summary['can_refund_overpayment'] = false;
+                }
+            }
+            if (!array_key_exists('refund_summary', $invoice)) {
+                foreach ($this->store->externalObservations() as $external) {
+                    $cash = $external['observation'];
+                    if ($cash['invoice_id'] === $invoice['invoice_id'] && $cash['mode'] === RefundStates::OVERPAYMENT
+                        && $cash['status'] === RefundStates::COMPLETED) {
+                        $summary['can_refund_overpayment'] = false;
+                    }
+                }
             }
             if ($blocked) { $summary['can_refund_full'] = false; $summary['can_refund_overpayment'] = false; }
             return $summary;
@@ -577,8 +600,9 @@ final class RefundAdapter implements NativeRefundProjectorInterface
         return array(
             'can_refund_full' => $paid,
             'can_refund_overpayment' => $overpaid,
-            'full_refund_amount' => isset($payment['paid']) && is_string($payment['paid']) ? $payment['paid'] : ($paid ? (string) ($invoice['order']['amount'] ?? '0') : '0'),
-            'overpayment_refund_amount' => $overpaid && isset($payment['paid']) && is_string($payment['paid']) ? $payment['paid'] : '0',
+            // Gross is not a refundable balance: prior completed refunds are unknown here.
+            'full_refund_amount' => null,
+            'overpayment_refund_amount' => null,
             'refund_asset' => isset($payment['currency'], $payment['network'])
                 ? array('currency' => $payment['currency'], 'network' => $payment['network']) : null,
         );
@@ -610,7 +634,7 @@ final class RefundAdapter implements NativeRefundProjectorInterface
                     $cash['amount'], $cash['currency'] . '/' . $cash['network'], $row['review_reason'] ?? ''))) . '</code></p>';
             }
             echo '<p id="paymos-refund-summary"></p><p id="paymos-refund-error" role="alert"></p><button type="button" disabled class="button" id="paymos-overpayment">' . esc_html__('Refund overpayment', 'paymos-for-woocommerce') . '</button></div>';
-            $settings = array('order_id' => $order->get_id(), 'security' => wp_create_nonce('order-item'), 'tokens' => $tokens);
+            $settings = array('order_id' => $order->get_id(), 'security' => wp_create_nonce('order-item'), 'tokens' => $tokens, 'calculated' => __('Calculated by Paymos before the refund is sent.', 'paymos-for-woocommerce'));
             wp_register_script('paymos-woocommerce-refunds', false, array('jquery'), PAYMOS_WC_PLUGIN_VERSION, true);
             wp_enqueue_script('paymos-woocommerce-refunds');
             wp_add_inline_script('paymos-woocommerce-refunds', 'jQuery(function($){var p=' . wp_json_encode($settings) . ';
@@ -622,7 +646,7 @@ final class RefundAdapter implements NativeRefundProjectorInterface
                 function refundError(r){if(r.data&&r.data.error)$("#paymos-refund-error").text(r.data.error);}
                 $("#paymos-overpayment").on("click",function(){var b=$(this);b.prop("disabled",true);$("#paymos-refund-error").text("");$.post(ajaxurl,{action:"paymos_refund",order_id:p.order_id,security:p.security,paymos_refund_token:p.tokens.overpayment},function(r){if(r.paymos_refund){window.location.reload();return;}refundError(r);b.prop("disabled",false);});});
                 $.post(ajaxurl,{action:"paymos_refund",mode:"summary",order_id:p.order_id,security:p.security},function(r){if(r.success){var a=r.data.refund_asset||{};
-                    $("#paymos-refund-summary").text("' . esc_js(__('Full refund:', 'paymos-for-woocommerce')) . ' "+(r.data.full_refund_amount||"0")+" / ' . esc_js(__('Overpayment:', 'paymos-for-woocommerce')) . ' "+(r.data.overpayment_refund_amount||"0")+" "+(a.currency||"")+"/"+(a.network||""));
+                    $("#paymos-refund-summary").text("' . esc_js(__('Full refund:', 'paymos-for-woocommerce')) . ' "+(r.data.full_refund_amount===null?p.calculated:(r.data.full_refund_amount||"0"))+" / ' . esc_js(__('Overpayment:', 'paymos-for-woocommerce')) . ' "+(r.data.overpayment_refund_amount===null?p.calculated:(r.data.overpayment_refund_amount||"0"))+" "+(a.currency||"")+"/"+(a.network||""));
                     $("#paymos-overpayment").prop("disabled",r.data.can_refund_overpayment!==true);}else{refundError(r);}});
             });');
         } catch (\Throwable $error) {

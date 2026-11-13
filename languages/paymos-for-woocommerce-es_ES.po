@@ -238,3 +238,63 @@ msgstr "La tienda tiene que revisar este pedido antes de que puedas continuar co
 #: includes/OrderMapper.php:305
 msgid "Paymos: the customer finished paying for this order after the invoice closed. Check stock, then fulfil the order manually or refund the payment."
 msgstr "Paymos: el cliente terminó de pagar este pedido con retraso. Revisa el inventario y completa el pedido a mano o devuélvele el dinero."
+
+#. Payment/refund interface
+msgid "Calculated by Paymos before the refund is sent."
+msgstr "Paymos calculará el importe antes de enviar el reembolso."
+
+#. Payment/refund interface
+msgid "Every minute"
+msgstr "Cada minuto"
+
+#. Payment/refund interface
+msgid "Full refund:"
+msgstr "Reembolso completo:"
+
+#. Payment/refund interface
+msgid "Nothing was refunded. Open the order in WooCommerce admin and refund it there."
+msgstr "No se ha reembolsado nada. Abra el pedido en la administración de WooCommerce y tramite allí el reembolso."
+
+#. Payment/refund interface
+msgid "Overpayment:"
+msgstr "Sobrepago:"
+
+#. Payment/refund interface
+msgid "Paymos is waiting for the payment again — a confirmed transfer was rolled back on-chain."
+msgstr "Paymos vuelve a esperar el pago: una transferencia confirmada se ha revertido en la cadena."
+
+#. Payment/refund interface
+msgid "Paymos overpayment refund completed. The order stays paid and stock is unchanged."
+msgstr "Paymos ha reembolsado el sobrepago. El pedido sigue pagado y el inventario no cambia."
+
+#. Payment/refund interface
+msgid "Paymos received only part of the payment. %1$s %2$s is still outstanding — the order stays on hold until the customer sends the rest."
+msgstr "Paymos ha recibido un pago parcial. Faltan %1$s %2$s; el pedido queda en espera hasta que el cliente pague el resto."
+
+#. Payment/refund interface
+msgid "Paymos refunds"
+msgstr "Reembolsos de Paymos"
+
+#. Payment/refund interface
+msgid "Paymos refunds could not be loaded. Reload the page to try again."
+msgstr "No se han podido cargar los reembolsos de Paymos. Recargue la página e inténtelo de nuevo."
+
+#. Payment/refund interface
+msgid "Refund"
+msgstr "Reembolso"
+
+#. Payment/refund interface
+msgid "Refund overpayment"
+msgstr "Reembolsar sobrepago"
+
+#. Payment/refund interface
+msgid "Refund requested. The order is updated when the refund completes."
+msgstr "Se ha solicitado el reembolso. El pedido se actualizará cuando termine."
+
+#. Payment/refund interface
+msgid "The refund was not started. With Debug logging on, the reason is written to the WooCommerce logs."
+msgstr "No se ha iniciado el reembolso. Si el registro de depuración está activado, el motivo figura en los registros de WooCommerce."
+
+#. Payment/refund interface
+msgid "You do not have permission to refund this order."
+msgstr "No tiene permiso para reembolsar este pedido."

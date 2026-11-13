@@ -17,6 +17,9 @@ class FakeOrder
     public $completionResult = true;
     public $transitionResult = true;
     public $completionCalls = 0;
+    public $saveCalls = 0;
+    public $method = 'paymos';
+    public function get_payment_method() { return $this->method; }
     private $id;
 
     /** @var array<int, array<int, string>> */
@@ -102,6 +105,7 @@ class FakeOrder
 
     public function save()
     {
+        $this->saveCalls++;
         return $this->get_id();
     }
 }
@@ -291,7 +295,8 @@ function test_order_mapper_does_not_roll_back_paid_order_on_late_cancel_event()
     ));
 
     assertSameValue(array(), $order->statusUpdates, 'late cancel webhook must not roll back an already paid Woo order.');
-    assertSameValue('invoice.cancelled', $order->meta['_paymos_last_event_type'], 'late event must still be recorded for audit.');
+    assertSameValue(false, isset($order->meta['_paymos_last_event_type']), 'stale event must not replace the last accepted event.');
+    assertSameValue(0, $order->saveCalls, 'ignored events must not save the order.');
 }
 
 function test_order_mapper_ignores_a_stale_event_after_a_failed_invoice()
@@ -323,9 +328,43 @@ function test_order_mapper_keeps_the_final_status_when_a_paid_order_gets_a_stale
     $order = new FakeOrder();
     $order->paid = true;
     $order->update_meta_data('_paymos_last_status', 'paid');
+    $order->update_meta_data('_paymos_last_event_type', 'invoice.paid');
+    $order->update_meta_data('_paymos_last_event_id', 'evt_paid');
     $mapper = new OrderMapper();
 
     $mapper->apply($order, array('event_id' => 'evt_old', 'event_type' => 'invoice.confirming', 'data' => array('status' => 'confirming')));
 
     assertSameValue('paid', $order->meta['_paymos_last_status'], 'a stale confirming must not overwrite the recorded paid status.');
+}
+
+function test_r31_final_woo_order_keeps_event_metadata_and_does_not_save()
+{
+    foreach (array('paid', 'expired', 'underpaid', 'cancelled') as $final) {
+        paymos_reset_test_state();
+        $order = new FakeOrder();
+        $order->paid = $final === 'paid';
+        $order->meta = array('_paymos_last_status' => $final, '_paymos_last_event_type' => 'invoice.' . $final,
+            '_paymos_last_event_id' => 'evt_final', '_paymos_last_event_at' => '2026-11-01T00:00:00Z');
+        $before = $order->meta;
+        (new OrderMapper())->apply($order, array('event_id' => 'evt_old', 'event_type' => 'invoice.confirming',
+            'occurred_at' => 1, 'data' => array('status' => 'confirming')));
+        assertSameValue($before, $order->meta, 'Stale metadata cannot replace accepted final event.');
+        assertSameValue(0, $order->saveCalls, 'Stale events must not fire order save hooks.');
+        assertSameValue(array(), $order->notes, 'Stale events remain inert.');
+    }
+}
+
+function test_r31_paid_retry_repairs_metadata_after_native_completion_save_failure()
+{
+    paymos_reset_test_state();
+    $order = new FakeOrder();
+    $order->paid = true;
+    $order->meta = array('_paymos_last_status' => 'confirming', '_paymos_invoice_amount' => '100', '_paymos_invoice_currency' => 'USD');
+    $event = array('event_id' => 'evt_paid_retry', 'event_type' => 'invoice.paid', 'data' => array(
+        'invoice_id' => 'inv_paid', 'status' => 'paid', 'order' => array('amount' => '100', 'currency' => 'USD')));
+    (new OrderMapper())->apply($order, $event);
+    assertSameValue('paid', $order->meta['_paymos_last_status'], 'Verified retry repairs final projection.');
+    assertSameValue('inv_paid', $order->meta['_paymos_applied_paid_invoice_id'], 'Applied invoice is restored.');
+    assertSameValue(0, $order->completionCalls, 'Metadata recovery must not complete native payment again.');
+    assertSameValue(1, $order->saveCalls, 'Exactly one projection save.');
 }

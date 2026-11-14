@@ -4,7 +4,7 @@ Tags: payments, stablecoin, usdt, usdc, woocommerce
 Requires at least: 6.5
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 1.7.5
+Stable tag: 1.7.6
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -55,6 +55,9 @@ No. OAuth device authorization is only a one-time credential delivery channel. R
 
 == Changelog ==
 
+= 1.7.6 =
+* fix(woocommerce,edd): a network error during Connect keeps the flow alive
+
 = 1.7.5 =
 * chore: rebuild canonical CMS package
 
@@ -84,10 +87,5 @@ No. OAuth device authorization is only a one-time credential delivery channel. R
 * chore: rebuild canonical CMS package
 
 = 1.6.3 =
-* chore: rebuild canonical CMS package
-
-= 1.6.2 =
-* fix(cms): align marketplace manifests, refund copy, store links, and release guards
-* chore: bundle Paymos PHP SDK v1.9.1
 * chore: rebuild canonical CMS package
 

@@ -74,8 +74,10 @@
           window.setTimeout(function () { window.location.reload(); }, 700);
           return;
         }
-        status(config.messages.waiting, false);
-        window.setTimeout(check, response.data.status === 'slow_down' ? interval + 5000 : interval);
+        // retry: Paymos could not be reached this time. The request is kept, so back off like slow_down.
+        var retry = response.data.status === 'retry';
+        status((retry && response.data.message) || config.messages.waiting, false);
+        window.setTimeout(check, retry || response.data.status === 'slow_down' ? interval + 5000 : interval);
       }).catch(function () { terminalError(config.messages.failed); });
     }, interval);
   }

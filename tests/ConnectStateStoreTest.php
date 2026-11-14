@@ -77,7 +77,8 @@ function test_r31_connect_stale_poll_cannot_clear_or_install_credentials()
                 return array('response' => array('code' => 400), 'body' => '{"error":"access_denied"}', 'headers' => array());
             }
             $credentials = paymos_test_credentials();
-            $credentials['sandbox']['project_id'] = 'stale-project';
+            // A valid project ID: the replaced flow, not credential validation, must refuse it.
+            $credentials['sandbox']['project_id'] = 'prj_stale';
             return array('response' => array('code' => 200), 'headers' => array(),
                 'body' => json_encode(array('paymos_config' => array('plugin' => 'woocommerce',
                     'source_url' => rtrim(home_url('/'), '/'), 'environments' => $credentials))));
@@ -86,8 +87,60 @@ function test_r31_connect_stale_poll_cannot_clear_or_install_credentials()
         assertSameValue($flowB, ConnectStateStore::load()['flow_id'], 'A stale poll must preserve flow B.');
         assertSameValue('device-B', ConnectStateStore::load()['device_code'], 'B keeps its device code.');
         assertSameValue($original, PaymosWooCommerce\CredentialStore::load(), 'Stale success must not install A credentials.');
-        assertSameValue(false, $GLOBALS['paymos_test_json_response']['success'], 'Stale poll must report failure.');
+        if ($result === 'transport') {
+            assertSameValue(array('success' => true, 'data' => array('status' => 'retry', 'message' => 'connection lost')),
+                $GLOBALS['paymos_test_json_response'], 'A lost connection must ask the page to poll again.');
+        } else {
+            assertSameValue(false, $GLOBALS['paymos_test_json_response']['success'], 'Stale poll must report failure.');
+        }
     }
+}
+
+function test_connect_transport_error_keeps_the_flow()
+{
+    paymos_reset_test_state();
+    $flow = ConnectStateStore::save(paymos_test_connect_state());
+    $_POST = array('flow_id' => $flow);
+    $GLOBALS['paymos_test_remote_handler'] = static function () { throw new RuntimeException('connection lost'); };
+    PaymosWooCommerce\ConnectController::poll();
+    assertSameValue(1, count($GLOBALS['paymos_test_http_requests']), 'The poll must reach Paymos once.');
+    assertSameValue(array('success' => true, 'data' => array('status' => 'retry', 'message' => 'connection lost')),
+        $GLOBALS['paymos_test_json_response'], 'A transport error must ask the page to poll again with its reason.');
+    assertSameValue($flow, ConnectStateStore::load()['flow_id'], 'A transport error must keep the connection request.');
+    assertSameValue('device-secret-code', ConnectStateStore::load()['device_code'], 'The same device code is polled again.');
+}
+
+function test_connect_refusal_or_foreign_store_clears_the_flow()
+{
+    foreach (array(
+        'denied' => array(400, '{"error":"access_denied"}', 409),
+        'foreign' => array(200, json_encode(array('paymos_config' => array('plugin' => 'woocommerce',
+            'source_url' => 'https://other.example.test', 'environments' => paymos_test_credentials()))), 400),
+    ) as $case => list($code, $body, $status)) {
+        paymos_reset_test_state();
+        $_POST = array('flow_id' => ConnectStateStore::save(paymos_test_connect_state()));
+        $GLOBALS['paymos_test_remote_handler'] = static function () use ($code, $body) {
+            return array('response' => array('code' => $code), 'body' => $body, 'headers' => array());
+        };
+        PaymosWooCommerce\ConnectController::poll();
+        assertSameValue(false, $GLOBALS['paymos_test_json_response']['success'], $case . ': the poll must fail.');
+        assertSameValue($status, $GLOBALS['paymos_test_json_status'], $case . ': unexpected HTTP status.');
+        assertSameValue(array(), ConnectStateStore::load(), $case . ': the connection request must be cleared.');
+    }
+}
+
+function test_connect_expired_request_ends_polling()
+{
+    paymos_reset_test_state();
+    $state = paymos_test_connect_state();
+    $state['started_at'] = time() - 601;
+    $_POST = array('flow_id' => ConnectStateStore::save($state));
+    $GLOBALS['paymos_test_remote_handler'] = static function () { throw new RuntimeException('connection lost'); };
+    PaymosWooCommerce\ConnectController::poll();
+    assertSameValue(array(), $GLOBALS['paymos_test_http_requests'], 'An expired request must not poll Paymos.');
+    assertSameValue(false, $GLOBALS['paymos_test_json_response']['success'], 'An expired request must end polling.');
+    assertSameValue(400, $GLOBALS['paymos_test_json_status'], 'An expired request must answer 400.');
+    assertSameValue('', get_option(ConnectStateStore::OPTION_KEY, ''), 'An expired request must be deleted.');
 }
 
 function test_r31_connect_rejects_missing_or_stale_flow_before_http()

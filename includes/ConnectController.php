@@ -87,7 +87,14 @@ final class ConnectController
                 throw new \RuntimeException('No active Paymos connection request.');
             }
 
-            $result = self::client()->poll((string) $state['device_code']);
+            try {
+                $result = self::client()->poll((string) $state['device_code']);
+            } catch (\Throwable $exception) {
+                // A network or server failure says nothing about the device code: keep the request
+                // and let the page poll again until Paymos answers or the request expires locally.
+                wp_send_json_success(array('status' => 'retry', 'message' => $exception->getMessage()));
+                return;
+            }
             if ($result['status'] === 'connected') {
                 if ($result['plugin'] !== 'woocommerce'
                     || rtrim((string) $result['source_url'], '/') !== self::sourceUrl()) {

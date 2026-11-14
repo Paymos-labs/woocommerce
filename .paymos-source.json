@@ -1,6 +1,6 @@
 {
   "source_repository": "Paymos-labs/paymos",
   "source_path": "plugins/woocommerce-paymos",
-  "source_commit": "42478c720aab9c5e3261c853168f3d55c03c8f12",
-  "version": "1.7.5"
+  "source_commit": "0e188bd09778ffba21d86b54c2904510441daa30",
+  "version": "1.7.6"
 }

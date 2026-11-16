@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace PaymosWooCommerce;
 
 use Paymos\Exception\ApiException;
+use Paymos\Plugin\InvoicePresentation;
 use Paymos\Plugin\InvoiceRenewal;
 use Paymos\Plugin\InvoiceReplacement;
 use Paymos\Plugin\InvoiceReplacementBlockedException;
@@ -133,6 +134,13 @@ final class Gateway extends \WC_Payment_Gateway
                 $payload['client_id'] = $clientId;
             }
 
+            $products = $this->orderProducts($order);
+            if ($products !== null) {
+                $payload['products'] = $products;
+            }
+
+            $currentPayload = $payload;
+
             $storedExternalOrderId = $this->storedExternalOrderId($order);
             $pending = (string) $order->get_meta('_paymos_creation_intent', true) === 'pending';
             if ($pending) {
@@ -148,6 +156,7 @@ final class Gateway extends \WC_Payment_Gateway
                     $this->closeBeforeReplacing((string) $order->get_meta('_paymos_invoice_id', true), $oldEnvironment, '');
                     $lock->assertOwned();
                     $externalOrderId = $this->freshExternalOrderId($order);
+                    $payload = $currentPayload;
                     $payload['external_order_id'] = $externalOrderId;
                     CreationIntent::persist($order, $payload, $environment, $lock);
                     $invoice = $this->client($config)->invoices()->create($payload);
@@ -182,6 +191,7 @@ final class Gateway extends \WC_Payment_Gateway
                 );
                 $lock->assertOwned();
                 $externalOrderId = $this->freshExternalOrderId($order);
+                $payload = $currentPayload;
                 $payload['external_order_id'] = $externalOrderId;
                 CreationIntent::persist($order, $payload, $environment, $lock);
                 $invoice = $this->client($config)->invoices()->create($payload);
@@ -402,6 +412,136 @@ final class Gateway extends \WC_Payment_Gateway
 
         $customerId = trim((string) $order->get_customer_id());
         return $customerId !== '' && $customerId !== '0' ? $customerId : '';
+    }
+
+    /**
+     * Extract normalized product line items or return null for amount-only fallback.
+     *
+     * @param object $order
+     * @return array<int, array<string, mixed>>|null
+     */
+    private function orderProducts($order)
+    {
+        if (!is_object($order) || !method_exists($order, 'get_items')) {
+            return null;
+        }
+
+        $items = $order->get_items('line_item');
+        if (!is_iterable($items)) {
+            return null;
+        }
+
+        $includeTax = method_exists($order, 'get_prices_include_tax')
+            ? (bool) $order->get_prices_include_tax()
+            : false;
+        $decimals = function_exists('wc_get_price_decimals') ? wc_get_price_decimals() : false;
+
+        $candidates = array();
+        foreach ($items as $item) {
+            if (!is_object($item)) {
+                continue;
+            }
+            if (method_exists($item, 'get_type')) {
+                if ((string) $item->get_type() !== 'line_item') {
+                    continue;
+                }
+            } elseif (class_exists('WC_Order_Item_Product') && !($item instanceof \WC_Order_Item_Product)) {
+                continue;
+            }
+
+            $title = method_exists($item, 'get_name') ? $item->get_name() : null;
+            if (is_string($title)) {
+                $title = function_exists('strip_shortcodes') ? strip_shortcodes($title) : $title;
+            } elseif (is_scalar($title)) {
+                $title = (string) $title;
+            } else {
+                $title = null;
+            }
+
+            $quantity = method_exists($item, 'get_quantity') ? $item->get_quantity() : null;
+
+            $unitAmount = null;
+            if (method_exists($order, 'get_item_subtotal')) {
+                $rawUnit = $order->get_item_subtotal($item, $includeTax, true);
+                if (is_int($rawUnit) || is_float($rawUnit) || (is_string($rawUnit) && is_numeric(trim($rawUnit)))) {
+                    $unitAmount = wc_format_decimal($rawUnit, $decimals);
+                }
+            }
+
+            $product = method_exists($item, 'get_product') ? $item->get_product() : null;
+            $candidates[] = array(
+                'title' => $title,
+                'description' => $this->productDescription($product),
+                'image_url' => $this->productImageUrl($product),
+                'quantity' => $quantity,
+                'unit_amount' => $unitAmount,
+            );
+        }
+
+        return InvoicePresentation::normalizeProducts($candidates);
+    }
+
+    /**
+     * @param mixed $product
+     */
+    private function productDescription($product): ?string
+    {
+        if (!is_object($product)) {
+            return null;
+        }
+
+        $description = $this->readProductDescription($product);
+        if ($description === null && function_exists('wc_get_product') && method_exists($product, 'get_parent_id')) {
+            $parentId = (int) $product->get_parent_id();
+            if ($parentId > 0) {
+                $parent = wc_get_product($parentId);
+                if (is_object($parent)) {
+                    $description = $this->readProductDescription($parent);
+                }
+            }
+        }
+
+        if ($description !== null && function_exists('strip_shortcodes')) {
+            $description = strip_shortcodes($description);
+        }
+
+        return $description;
+    }
+
+    /**
+     * @param object $product
+     */
+    private function readProductDescription($product): ?string
+    {
+        foreach (array('get_short_description', 'get_description') as $method) {
+            if (!method_exists($product, $method)) {
+                continue;
+            }
+            $value = $product->$method();
+            if (is_string($value) && trim($value) !== '') {
+                return $value;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param mixed $product
+     */
+    private function productImageUrl($product): ?string
+    {
+        if (!is_object($product) || !method_exists($product, 'get_image_id') || !function_exists('wp_get_attachment_image_url')) {
+            return null;
+        }
+
+        $imageId = (int) $product->get_image_id();
+        if ($imageId <= 0) {
+            return null;
+        }
+
+        $url = wp_get_attachment_image_url($imageId, 'woocommerce_thumbnail');
+        return is_string($url) && $url !== '' ? $url : null;
     }
 
     public function generate_paymos_webhook_url_html($key, $data)

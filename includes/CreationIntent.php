@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace PaymosWooCommerce;
 
 use Paymos\Plugin\AmountGuard;
+use Paymos\Plugin\InvoicePresentation;
 use Paymos\Plugin\WordPressOrderLock;
 
 defined('ABSPATH') || exit;
@@ -145,6 +146,48 @@ final class CreationIntent
         if (isset($payload['client_id']) && (!is_string($payload['client_id']) || trim($payload['client_id']) === '')) {
             throw new \RuntimeException('Paymos invoice intent client ID is invalid.');
         }
+        if (array_key_exists('products', $payload) && !self::isValidProducts($payload['products'])) {
+            throw new \RuntimeException('Paymos invoice intent products are invalid.');
+        }
+    }
+
+    /**
+     * Validate already-normalized `products[]` structurally without mutating strings.
+     *
+     * @param mixed $products
+     */
+    private static function isValidProducts($products): bool
+    {
+        if (!is_array($products)) {
+            return false;
+        }
+        $count = count($products);
+        if ($count < 1 || $count > InvoicePresentation::MAX_ITEMS || array_values($products) !== $products) {
+            return false;
+        }
+        $allowedKeys = array('title', 'quantity', 'unit_amount', 'description', 'image_url');
+        foreach ($products as $item) {
+            if (!is_array($item) || array_diff(array_keys($item), $allowedKeys)) {
+                return false;
+            }
+            if (!isset($item['title']) || !is_string($item['title']) || trim($item['title']) === '' || strpos($item['title'], "\0") !== false) {
+                return false;
+            }
+            if (!isset($item['quantity']) || !is_int($item['quantity']) || $item['quantity'] < 1 || $item['quantity'] > 2147483647) {
+                return false;
+            }
+            if (!isset($item['unit_amount']) || !is_string($item['unit_amount']) || strlen($item['unit_amount']) > 39
+                || preg_match('/\A(?:0|[1-9][0-9]{0,19})(?:\.[0-9]{1,18})?\z/', $item['unit_amount']) !== 1) {
+                return false;
+            }
+            if (array_key_exists('description', $item) && (!is_string($item['description']) || trim($item['description']) === '' || strpos($item['description'], "\0") !== false)) {
+                return false;
+            }
+            if (array_key_exists('image_url', $item) && (!is_string($item['image_url']) || preg_match('/\Ahttps:\/\//i', $item['image_url']) !== 1 || strpos($item['image_url'], "\0") !== false)) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private static function save($order, WordPressOrderLock $lock)

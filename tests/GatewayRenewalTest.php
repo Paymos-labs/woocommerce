@@ -9,7 +9,7 @@ use PaymosWooCommerce\StorefrontHooks;
 // back to pending keeps its external_order_id; the server answers that id with
 // the same, already final, invoice — and "Pay invoice" in My Account links to it.
 
-final class RenewableFakeOrder
+class RenewableFakeOrder
 {
     /** @var array<string, mixed> */
     public $meta = array();
@@ -66,6 +66,101 @@ if (!function_exists('esc_url')) {
     function esc_url($url)
     {
         return (string) $url;
+    }
+}
+
+if (!function_exists('wp_get_attachment_image_url')) {
+    function wp_get_attachment_image_url($attachment_id, $size = 'thumbnail', $icon = false)
+    {
+        $map = isset($GLOBALS['paymos_test_attachment_urls']) && is_array($GLOBALS['paymos_test_attachment_urls'])
+            ? $GLOBALS['paymos_test_attachment_urls']
+            : array();
+        $id = (int) $attachment_id;
+        return array_key_exists($id, $map) ? $map[$id] : false;
+    }
+}
+
+if (!class_exists('WC_Order_Item_Product')) {
+    class WC_Order_Item_Product
+    {
+        /** @var string */
+        private $name;
+        /** @var int|float|string */
+        private $quantity;
+        /** @var object|false|null */
+        private $product;
+        /** @var string */
+        private $type;
+
+        /**
+         * @param int|float|string $quantity
+         * @param object|false|null $product
+         */
+        public function __construct($name, $quantity, $product = null, $type = 'line_item')
+        {
+            $this->name = (string) $name;
+            $this->quantity = $quantity;
+            $this->product = $product;
+            $this->type = (string) $type;
+        }
+
+        public function get_type() { return $this->type; }
+        public function get_name() { return $this->name; }
+        public function get_quantity() { return $this->quantity; }
+        public function get_product() { return $this->product; }
+    }
+}
+
+final class PresentationFakeProduct
+{
+    private $shortDescription;
+    private $description;
+    private $imageId;
+
+    public function __construct($shortDescription = '', $description = '', $imageId = 0)
+    {
+        $this->shortDescription = (string) $shortDescription;
+        $this->description = (string) $description;
+        $this->imageId = (int) $imageId;
+    }
+
+    public function get_short_description() { return $this->shortDescription; }
+    public function get_description() { return $this->description; }
+    public function get_image_id() { return $this->imageId; }
+}
+
+final class PresentationFakeOrder extends RenewableFakeOrder
+{
+    /** @var string */
+    public $total = '47.00';
+    /** @var bool */
+    public $pricesIncludeTax = true;
+    /** @var array<int, object> */
+    public $items = array();
+    /** @var array<int, string> */
+    public $subtotals = array();
+    /** @var array<int, array<int, mixed>> */
+    public $subtotalCalls = array();
+
+    public function get_total() { return $this->total; }
+    public function get_prices_include_tax() { return $this->pricesIncludeTax; }
+
+    public function get_items($types = 'line_item')
+    {
+        if ($types === '' || $types === null) {
+            return $this->items;
+        }
+        $wanted = is_array($types) ? $types : array((string) $types);
+        return array_values(array_filter($this->items, static function ($item) use ($wanted) {
+            return method_exists($item, 'get_type') && in_array((string) $item->get_type(), $wanted, true);
+        }));
+    }
+
+    public function get_item_subtotal($item, $inc_tax = false, $round = true)
+    {
+        $this->subtotalCalls[] = array($item, $inc_tax, $round);
+        $idx = array_search($item, $this->items, true);
+        return $idx !== false && array_key_exists($idx, $this->subtotals) ? $this->subtotals[$idx] : '0.00';
     }
 }
 
@@ -487,5 +582,260 @@ function test_gateway_catalogues_carry_the_blocked_replacement_strings()
         foreach ($expected as $msgid) {
             assertTrueValue(strpos($text, 'msgid "' . $msgid . '"') !== false, $file . ': has "' . $msgid . '".');
         }
+    }
+}
+
+function test_gateway_sends_single_product_using_get_item_subtotal_and_handles_deleted_or_minimal_products()
+{
+    $order = new PresentationFakeOrder();
+    $order->total = '47.00';
+    $order->pricesIncludeTax = true;
+    $item = new WC_Order_Item_Product(
+        '<b>Canvas</b> &middot; Blue',
+        2,
+        new PresentationFakeProduct('<p>Archival&nbsp;print</p>', '', 55)
+    );
+    $order->items = array($item);
+    $order->subtotals = array(24.5);
+
+    paymos_renewal_setup($order, array(
+        array('invoice_id' => 'inv_single', 'status' => 'awaiting_client', 'payment_url' => 'https://checkout.paymos.io/inv_single'),
+    ), $sent);
+    $GLOBALS['paymos_test_attachment_urls'] = array(55 => 'https://shop.example/images/canvas.webp');
+
+    $result = (new Gateway())->process_payment(100);
+
+    assertSameValue('success', $result['result'], 'Single product checkout must succeed.');
+    assertSameValue('47', $sent[0]['amount'], 'Native grand total must stay separate from item unit_amount * qty.');
+    assertSameValue(array(
+        array(
+            'title' => 'Canvas · Blue',
+            'quantity' => 2,
+            'unit_amount' => '24.50',
+            'description' => 'Archival print',
+            'image_url' => 'https://shop.example/images/canvas.webp',
+        ),
+    ), $sent[0]['products'], 'Single item must normalize HTML, quantity, and unit_amount.');
+    assertSameValue(1, count($order->subtotalCalls), 'WooCommerce must invoke get_item_subtotal once for the product item.');
+    assertSameValue(array($item, true, true), $order->subtotalCalls[0], 'get_item_subtotal must receive item, prices_include_tax, and round=true.');
+
+    // Deleted product ($item->get_product() === false) or blank/non-HTTPS optional fields keep the item without failing.
+    $minimalOrder = new PresentationFakeOrder();
+    $minimalOrder->total = '47.00';
+    $minimalOrder->items = array(new WC_Order_Item_Product('Deleted Catalog Item', 2, false));
+    $minimalOrder->subtotals = array('24.50');
+    paymos_renewal_setup($minimalOrder, array(
+        array('invoice_id' => 'inv_deleted_prod', 'status' => 'awaiting_client', 'payment_url' => 'https://checkout.paymos.io/inv_deleted_prod'),
+    ), $sent);
+    $res2 = (new Gateway())->process_payment(100);
+    assertSameValue('success', $res2['result'], 'Deleted product order item must still succeed.');
+    assertSameValue(array(
+        array(
+            'title' => 'Deleted Catalog Item',
+            'quantity' => 2,
+            'unit_amount' => '24.50',
+        ),
+    ), $sent[0]['products'], 'Deleted product must keep required item fields and omit optional description/image_url.');
+
+    $httpOrder = new PresentationFakeOrder();
+    $httpOrder->total = '12.00';
+    $httpOrder->items = array(new WC_Order_Item_Product('Notebook', 1, new PresentationFakeProduct('&nbsp;', '', 77)));
+    $httpOrder->subtotals = array('12.00');
+    paymos_renewal_setup($httpOrder, array(
+        array('invoice_id' => 'inv_http_img', 'status' => 'awaiting_client', 'payment_url' => 'https://checkout.paymos.io/inv_http_img'),
+    ), $sent);
+    $GLOBALS['paymos_test_attachment_urls'] = array(77 => 'http://shop.example/insecure.png');
+    $res3 = (new Gateway())->process_payment(100);
+    assertSameValue('success', $res3['result'], 'Item with blank description and HTTP image must still succeed.');
+    assertSameValue(array(
+        array(
+            'title' => 'Notebook',
+            'quantity' => 1,
+            'unit_amount' => '12.00',
+        ),
+    ), $sent[0]['products'], 'Blank description and non-HTTPS image_url must be omitted without failing the item.');
+    unset($GLOBALS['paymos_test_attachment_urls']);
+}
+
+function test_gateway_sends_multi_item_cart_excluding_non_product_lines_and_applies_all_or_nothing_fallback()
+{
+    $order = new PresentationFakeOrder();
+    $order->total = '42.50';
+    $order->items = array(
+        new WC_Order_Item_Product('Canvas', 2, new PresentationFakeProduct('Fine art print', '', 10)),
+        new WC_Order_Item_Product('Notebook', 1, new PresentationFakeProduct('', '', 0)),
+        new WC_Order_Item_Product('Flat rate shipping', 1, null, 'shipping'),
+        new WC_Order_Item_Product('Handling fee', 1, null, 'fee'),
+        new WC_Order_Item_Product('VAT 20%', 1, null, 'tax'),
+        new WC_Order_Item_Product('SAVE10', 1, null, 'coupon'),
+    );
+    $order->subtotals = array('15.00', '12.50', '5.00', '2.00', '3.00', '-10.00');
+
+    paymos_renewal_setup($order, array(
+        array('invoice_id' => 'inv_cart', 'status' => 'awaiting_client', 'payment_url' => 'https://checkout.paymos.io/inv_cart'),
+    ), $sent);
+    $GLOBALS['paymos_test_attachment_urls'] = array(10 => 'https://shop.example/canvas.png');
+
+    $result = (new Gateway())->process_payment(100);
+
+    assertSameValue('success', $result['result'], 'Cart with shipping/fee/tax/coupon must succeed.');
+    assertSameValue('42.5', $sent[0]['amount'], 'Native grand total must remain intact.');
+    assertSameValue(array(
+        array(
+            'title' => 'Canvas',
+            'quantity' => 2,
+            'unit_amount' => '15.00',
+            'description' => 'Fine art print',
+            'image_url' => 'https://shop.example/canvas.png',
+        ),
+        array(
+            'title' => 'Notebook',
+            'quantity' => 1,
+            'unit_amount' => '12.50',
+        ),
+    ), $sent[0]['products'], 'Shipping, fee, tax, and coupon lines must be excluded from products[].');
+
+    // Exactly 50 items succeed; 51 items fall back all-or-nothing to amount-only.
+    $fiftyOrder = new PresentationFakeOrder();
+    $fiftyOrder->total = '50.00';
+    for ($i = 1; $i <= 50; $i++) {
+        $fiftyOrder->items[] = new WC_Order_Item_Product('Item ' . $i, 1, null);
+        $fiftyOrder->subtotals[] = '1.00';
+    }
+    paymos_renewal_setup($fiftyOrder, array(
+        array('invoice_id' => 'inv_50', 'status' => 'awaiting_client', 'payment_url' => 'https://checkout.paymos.io/inv_50'),
+    ), $sent);
+    assertSameValue('success', (new Gateway())->process_payment(100)['result'], '50 items must succeed.');
+    assertSameValue(50, count($sent[0]['products']), '50 valid items must be transmitted.');
+
+    $fiftyOneOrder = new PresentationFakeOrder();
+    $fiftyOneOrder->total = '51.00';
+    for ($i = 1; $i <= 51; $i++) {
+        $fiftyOneOrder->items[] = new WC_Order_Item_Product('Item ' . $i, 1, null);
+        $fiftyOneOrder->subtotals[] = '1.00';
+    }
+    paymos_renewal_setup($fiftyOneOrder, array(
+        array('invoice_id' => 'inv_51', 'status' => 'awaiting_client', 'payment_url' => 'https://checkout.paymos.io/inv_51'),
+    ), $sent);
+    assertSameValue('success', (new Gateway())->process_payment(100)['result'], '51 items must still create invoice.');
+    assertSameValue(false, array_key_exists('products', $sent[0]), '51 items must fall back all-or-nothing to amount-only.');
+
+    // Fractional quantity or negative unit amount on one item triggers all-or-nothing fallback.
+    $badCartOrder = new PresentationFakeOrder();
+    $badCartOrder->total = '35.00';
+    $badCartOrder->items = array(
+        new WC_Order_Item_Product('Valid Shirt', 1, null),
+        new WC_Order_Item_Product('Bulk Fabric', 1.5, null),
+    );
+    $badCartOrder->subtotals = array('20.00', '10.00');
+    paymos_renewal_setup($badCartOrder, array(
+        array('invoice_id' => 'inv_bad_qty', 'status' => 'awaiting_client', 'payment_url' => 'https://checkout.paymos.io/inv_bad_qty'),
+    ), $sent);
+    assertSameValue('success', (new Gateway())->process_payment(100)['result'], 'Fractional qty cart must fall back to amount-only.');
+    assertSameValue(false, array_key_exists('products', $sent[0]), 'All-or-nothing fallback must omit partial products[] on fractional qty.');
+
+    $negativeItemOrder = new PresentationFakeOrder();
+    $negativeItemOrder->total = '15.00';
+    $negativeItemOrder->items = array(
+        new WC_Order_Item_Product('Valid Shirt', 1, null),
+        new WC_Order_Item_Product('Adjustment', 1, null),
+    );
+    $negativeItemOrder->subtotals = array('20.00', '-5.00');
+    paymos_renewal_setup($negativeItemOrder, array(
+        array('invoice_id' => 'inv_neg_item', 'status' => 'awaiting_client', 'payment_url' => 'https://checkout.paymos.io/inv_neg_item'),
+    ), $sent);
+    assertSameValue('success', (new Gateway())->process_payment(100)['result'], 'Negative line subtotal must fall back to amount-only.');
+    assertSameValue(false, array_key_exists('products', $sent[0]), 'All-or-nothing fallback must omit partial products[] on negative item price.');
+    unset($GLOBALS['paymos_test_attachment_urls']);
+}
+
+function test_gateway_lost_response_retry_replays_persisted_products_even_if_order_items_change()
+{
+    $order = new PresentationFakeOrder();
+    $order->total = '42.50';
+    $order->items = array(
+        new WC_Order_Item_Product('Studio "Pro" \\ v1', 2, new PresentationFakeProduct("Line 1\nLine 2 — Ω", '', 12)),
+        new WC_Order_Item_Product('Priority &lt;Support&gt;', 1, null),
+    );
+    $order->subtotals = array('15.00', '12.50');
+
+    paymos_reset_test_state();
+    paymos_store_credentials(array(
+        'sandbox' => array(
+            'api_key' => 'pk_test_key',
+            'api_secret' => 'sk_test_secret',
+            'project_id' => 'prj_123',
+            'webhook_secret' => 'whsec_test',
+            'base_url' => 'https://api.paymos.io',
+        ),
+    ));
+    $GLOBALS['paymos_test_wc_orders'] = array($order);
+    $GLOBALS['paymos_test_attachment_urls'] = array(12 => 'https://shop.example/studio.webp');
+
+    $sent = array();
+    $lost = true;
+    $GLOBALS['paymos_test_remote_handler'] = static function ($url, array $args) use (&$sent, &$lost) {
+        $sent[] = json_decode((string) $args['body'], true);
+        if ($lost) {
+            return new WP_Error('timeout', 'Accepted by API; response lost.');
+        }
+        return array(
+            'response' => array('code' => 201),
+            'body' => json_encode(array('invoice_id' => 'inv_recovered', 'status' => 'awaiting_client', 'payment_url' => 'https://checkout.paymos.io/inv_recovered')),
+            'headers' => array('content-type' => 'application/json'),
+        );
+    };
+
+    $firstResult = (new Gateway())->process_payment(100);
+    assertSameValue('failure', $firstResult['result'], 'First attempt with lost response reports failure.');
+    assertSameValue('pending', $order->meta['_paymos_creation_intent'], 'Creation intent stays pending.');
+    $originalProducts = $sent[0]['products'];
+    assertSameValue(2, count($originalProducts), 'First POST sent both original products.');
+
+    // Mutate order line items (keeping grand total 42.50) before retry.
+    $order->items = array(new WC_Order_Item_Product('Changed Item', 1, new PresentationFakeProduct('New desc', '', 99)));
+    $order->subtotals = array('42.50');
+    $GLOBALS['paymos_test_attachment_urls'] = array(99 => 'https://shop.example/changed.webp');
+    $lost = false;
+
+    $retryResult = (new Gateway())->process_payment(100);
+    assertSameValue('success', $retryResult['result'], 'Retry must recover the pending creation intent.');
+    assertSameValue(2, count($sent), 'Retry must replay the exact pending POST without creating a second intent.');
+    assertSameValue($sent[0], $sent[1], 'Retry POST body including products[] must be identical to the initial POST despite order item edits.');
+    assertSameValue($originalProducts, $sent[1]['products'], 'Original products[] A must be preserved on retry.');
+    assertSameValue('Priority <Support>', $sent[1]['products'][1]['title'], 'Decoded special characters in title must survive CreationIntent persistence.');
+    unset($GLOBALS['paymos_test_attachment_urls']);
+}
+
+function test_creation_intent_rejects_invalid_products_before_persistence_or_http()
+{
+    paymos_reset_test_state();
+    $order = new RenewableFakeOrder();
+    $lock = new \Paymos\Plugin\WordPressOrderLock('woocommerce', 100);
+    $lock->acquire();
+    try {
+        foreach (array(
+            array(),
+            array(array('title' => 'Item', 'quantity' => 1.5, 'unit_amount' => '10.00')),
+            array(array('title' => 'Item', 'quantity' => 1, 'unit_amount' => '-1.00')),
+            array(array('title' => 'Item', 'quantity' => 1, 'unit_amount' => '10.00', 'image_url' => 'http://insecure.example/a.png')),
+            'not-an-array',
+        ) as $badProducts) {
+            $threw = false;
+            try {
+                \PaymosWooCommerce\CreationIntent::persist($order, array(
+                    'project_id' => 'prj_123',
+                    'external_order_id' => 'wc_100_abc123',
+                    'amount' => '100.00',
+                    'currency' => 'USD',
+                    'products' => $badProducts,
+                ), 'sandbox', $lock);
+            } catch (RuntimeException $e) {
+                $threw = true;
+            }
+            assertTrueValue($threw, 'CreationIntent::persist must fail closed on invalid products.');
+        }
+    } finally {
+        $lock->release();
     }
 }

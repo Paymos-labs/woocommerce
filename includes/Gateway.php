@@ -472,7 +472,6 @@ final class Gateway extends \WC_Payment_Gateway
             $candidates[] = array(
                 'title' => $title,
                 'description' => $this->productDescription($product),
-                'image_url' => $this->productImageUrl($product),
                 'quantity' => $quantity,
                 'unit_amount' => $unitAmount,
             );
@@ -524,24 +523,6 @@ final class Gateway extends \WC_Payment_Gateway
         }
 
         return null;
-    }
-
-    /**
-     * @param mixed $product
-     */
-    private function productImageUrl($product): ?string
-    {
-        if (!is_object($product) || !method_exists($product, 'get_image_id') || !function_exists('wp_get_attachment_image_url')) {
-            return null;
-        }
-
-        $imageId = (int) $product->get_image_id();
-        if ($imageId <= 0) {
-            return null;
-        }
-
-        $url = wp_get_attachment_image_url($imageId, 'woocommerce_thumbnail');
-        return is_string($url) && $url !== '' ? $url : null;
     }
 
     public function generate_paymos_webhook_url_html($key, $data)

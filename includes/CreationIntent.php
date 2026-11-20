@@ -42,6 +42,14 @@ final class CreationIntent
         if (!is_array($payload)) {
             throw new \RuntimeException('Paymos pending invoice intent is unavailable.');
         }
+        // Project historical snapshots locally; the durable meta and every other value stay frozen.
+        if (isset($payload['products']) && is_array($payload['products'])) {
+            foreach ($payload['products'] as $index => $item) {
+                if (is_array($item)) {
+                    unset($payload['products'][$index]['image_url']);
+                }
+            }
+        }
         self::validatePayload($payload);
         if (!in_array((string) $order->get_meta('_paymos_environment', true), array('sandbox', 'live'), true)) {
             throw new \RuntimeException('Paymos pending invoice environment is unavailable.');
@@ -165,7 +173,7 @@ final class CreationIntent
         if ($count < 1 || $count > InvoicePresentation::MAX_ITEMS || array_values($products) !== $products) {
             return false;
         }
-        $allowedKeys = array('title', 'quantity', 'unit_amount', 'description', 'image_url');
+        $allowedKeys = array('title', 'quantity', 'unit_amount', 'description');
         foreach ($products as $item) {
             if (!is_array($item) || array_diff(array_keys($item), $allowedKeys)) {
                 return false;
@@ -181,9 +189,6 @@ final class CreationIntent
                 return false;
             }
             if (array_key_exists('description', $item) && (!is_string($item['description']) || trim($item['description']) === '' || strpos($item['description'], "\0") !== false)) {
-                return false;
-            }
-            if (array_key_exists('image_url', $item) && (!is_string($item['image_url']) || preg_match('/\Ahttps:\/\//i', $item['image_url']) !== 1 || strpos($item['image_url'], "\0") !== false)) {
                 return false;
             }
         }

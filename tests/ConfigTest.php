@@ -150,6 +150,6 @@ function test_tampered_credential_envelope_fails_closed()
 function test_woocommerce_sdk_dependency_preserves_supported_retry_contract()
 {
     $manifest = json_decode((string) file_get_contents(dirname(__DIR__) . '/composer.json'), true);
-    // ^1.10.0 means >=1.10.0 <2.0.0: old SDKs lack PREFLIGHT_RETRY.
-    assertSameValue('^1.10.0', $manifest['require']['paymos/php-sdk'], 'Require the first SDK with transient preflight retry, without admitting the next major.');
+    // ^1.11.0 includes product presentation and the existing PREFLIGHT_RETRY contract.
+    assertSameValue('^1.11.0', $manifest['require']['paymos/php-sdk'], 'Require product presentation and transient preflight retry without admitting the next major.');
 }

@@ -8,6 +8,8 @@ use Paymos\Plugin\AmountGuard;
 use Paymos\Plugin\EffectClaim;
 use Paymos\Plugin\ExternalRefundObservation;
 use Paymos\Plugin\NativeProjectionResult;
+use Paymos\Plugin\RefundCandidateStoreInterface;
+use Paymos\Plugin\RefundCoordinator;
 use Paymos\Plugin\RefundIntent;
 use Paymos\Plugin\RefundIntentPage;
 use Paymos\Plugin\RefundIntentStoreInterface;
@@ -17,7 +19,7 @@ use Paymos\Plugin\WordPressOrderLock;
 
 defined('ABSPATH') || exit;
 
-final class RefundIntentStore implements RefundIntentStoreInterface
+final class RefundIntentStore implements RefundIntentStoreInterface, RefundCandidateStoreInterface
 {
     public const SCHEMA_OPTION = 'paymos_woocommerce_refund_schema';
     private $lock;
@@ -361,6 +363,22 @@ final class RefundIntentStore implements RefundIntentStoreInterface
         });
     }
 
+    public function recordReadCandidate(string $operationId, ?string $candidateWithdrawalId, int $retryCount): void
+    {
+        if ($candidateWithdrawalId !== null && trim($candidateWithdrawalId) === '') {
+            throw new \InvalidArgumentException('refund_candidate_invalid');
+        }
+        if ($retryCount < 0) {
+            throw new \InvalidArgumentException('refund_retry_count_invalid');
+        }
+        $this->transaction(function () use ($operationId, $candidateWithdrawalId, $retryCount) {
+            $this->save($this->getIntent($operationId), array(
+                'candidate_withdrawal_id' => $candidateWithdrawalId,
+                'read_retry_count' => $retryCount,
+            ));
+        });
+    }
+
     public function recordState(string $operationId, string $cashState, string $projectionState, ?string $reason): void
     {
         if (!in_array($cashState, array('not_submitted', 'unknown', 'created', 'processing', 'completed', 'failed', 'cancelled', 'review'), true)
@@ -420,7 +438,12 @@ final class RefundIntentStore implements RefundIntentStoreInterface
             $intent = $this->getIntent($operationId);
             $data = $intent->toArray();
             $checks = $data['checks'] + 1;
-            $historical = in_array($intent->cashState(), array(RefundStates::COMPLETED, RefundStates::FAILED, RefundStates::CANCELLED, RefundStates::REVIEW), true);
+            $recoverableReadUnavailable = $intent->cashState() === RefundStates::REVIEW
+                && $data['review_reason'] === 'refund_read_unavailable'
+                && $intent->candidateWithdrawalId() !== null
+                && $intent->readRetryCount() < RefundCoordinator::MAX_READ_RETRIES;
+            $historical = !$recoverableReadUnavailable
+                && in_array($intent->cashState(), array(RefundStates::COMPLETED, RefundStates::FAILED, RefundStates::CANCELLED, RefundStates::REVIEW), true);
             $delays = array(60, 120, 300, 900, 3600);
             if (!$historical && time() - $data['created_at'] > 86400) {
                 $data['review_reason'] = 'refund_unresolved_over_24h';

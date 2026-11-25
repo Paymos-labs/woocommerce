@@ -8,6 +8,13 @@ The public release history also lives at [paymos.io/changelog](https://paymos.io
 
 ## [Unreleased]
 
+## [1.9.0] - 2026-11-25
+
+- fix: close bug batches 11-12 across SDKs, CMS plugins, workers, proxy, backup and admin
+- feat(platform): integrate pending main WIP — drop fiat_exchange_rates/VES, blockchain/worker fix batches 1-7, compact auth email layout, status-worker, plugins, forge and docs
+- chore: bundle Paymos PHP SDK v1.13.0
+- chore: rebuild canonical CMS package
+
 ## [1.8.3] - 2026-11-22
 
 - chore: rebuild canonical CMS package

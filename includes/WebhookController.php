@@ -8,6 +8,7 @@ use Paymos\Exception\DuplicateEventException;
 use Paymos\Exception\EventInProgressException;
 use Paymos\Exception\SignatureMismatchException;
 use Paymos\Exception\TimestampSkewException;
+use Paymos\Http\RequestDeadline;
 use Paymos\Plugin\InvoiceReverseVerifier;
 use Paymos\Plugin\StatusMapper;
 use Paymos\Plugin\WordPressOrderLock;
@@ -112,6 +113,8 @@ final class WebhookController
         if (!$lock->acquire()) {
             throw new EventInProgressException('Paymos Woo order is busy.');
         }
+        // Single callback-wide budget shared across recovery + reverse verification reads (BUG-1348).
+        $deadline = RequestDeadline::fromNow(ClientFactory::WEBHOOK_BUDGET_SECONDS);
         try {
             $order = FreshOrder::load((int) $matches[1], $lock);
             if (!$order) {
@@ -127,7 +130,7 @@ final class WebhookController
                 $binding = CreationIntent::historicalBinding($order, $eventObject->invoiceId());
                 if (($binding['environment'] ?? '') !== $environment
                     || ($binding['external_order_id'] ?? '') !== $externalOrderId
-                    || !(new InvoiceReverseVerifier(self::client($environment)))->verify($eventObject, $binding)->isVerified()) {
+                    || !(new InvoiceReverseVerifier(self::client($environment, $deadline)))->verify($eventObject, $binding)->isVerified()) {
                     throw new \RuntimeException('Paymos historical invoice verification failed.');
                 }
                 $lock->assertOwned();
@@ -141,8 +144,8 @@ final class WebhookController
                 throw new \RuntimeException('Paymos external order id does not match the Woo order.');
             }
 
-            $recovered = self::assertOrderMatchesEvent($order, $event, $environment, $lock);
-            self::reverseVerifyTerminalEvent($eventObject, $order, $environment, $recovered);
+            $recovered = self::assertOrderMatchesEvent($order, $event, $environment, $lock, $deadline);
+            self::reverseVerifyTerminalEvent($eventObject, $order, $environment, $recovered, $deadline);
 
             $mapper = new OrderMapper();
             $lock->assertOwned();
@@ -186,7 +189,7 @@ final class WebhookController
     /**
      * @param array<string, mixed> $event
      */
-    private static function assertOrderMatchesEvent($order, array $event, $environment, WordPressOrderLock $lock)
+    private static function assertOrderMatchesEvent($order, array $event, $environment, WordPressOrderLock $lock, $deadline = null)
     {
         $orderEnvironment = method_exists($order, 'get_meta') ? (string) $order->get_meta('_paymos_environment', true) : '';
         if ($orderEnvironment === '' || $orderEnvironment !== (string) $environment) {
@@ -205,7 +208,7 @@ final class WebhookController
         $recovered = false;
         if ((string) $order->get_meta('_paymos_creation_intent', true) === 'pending') {
             // Independent exact POST learns the ID; the callback ID is never adopted.
-            CreationIntent::recover($order, $lock, self::client($environment));
+            CreationIntent::recover($order, $lock, self::client($environment, $deadline));
             $recovered = true;
         }
         $invoiceId = isset($event['data']['invoice_id']) && is_scalar($event['data']['invoice_id']) ? (string) $event['data']['invoice_id'] : '';
@@ -215,13 +218,13 @@ final class WebhookController
         return $recovered;
     }
 
-    private static function reverseVerifyTerminalEvent(WebhookEvent $event, $order, $environment, $force = false)
+    private static function reverseVerifyTerminalEvent(WebhookEvent $event, $order, $environment, $force = false, $deadline = null)
     {
         if (!$force && !self::requiresReverseVerify($event)) {
             return;
         }
 
-        $result = (new InvoiceReverseVerifier(self::client($environment)))->verify($event, array(
+        $result = (new InvoiceReverseVerifier(self::client($environment, $deadline)))->verify($event, array(
             'environment' => $environment,
             'project_id' => self::orderMeta($order, '_paymos_project_id'),
             'external_order_id' => $event->externalOrderId(),
@@ -245,10 +248,10 @@ final class WebhookController
         ), true);
     }
 
-    private static function client($environment)
+    private static function client($environment, $deadline = null)
     {
         if (self::$clientFactory !== null) {
-            return call_user_func(self::$clientFactory, $environment);
+            return call_user_func(self::$clientFactory, $environment, $deadline);
         }
 
         $config = Config::environment_config($environment);
@@ -258,7 +261,7 @@ final class WebhookController
             }
         }
 
-        return ClientFactory::create($config);
+        return ClientFactory::createForWebhook($config, $deadline);
     }
 
     private static function orderMeta($order, $key)

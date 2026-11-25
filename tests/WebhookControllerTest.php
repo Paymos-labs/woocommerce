@@ -330,3 +330,102 @@ function test_webhook_controller_answers_409_while_the_event_is_still_being_proc
     assertSameValue(409, $response->get_status(), 'an event still in flight must be answered non-2xx so the server retries.');
     assertSameValue('processing', $wpdb->rows[md5('evt_inflight')]['status'], 'the retry must not release the lock the first attempt still holds.');
 }
+
+function test_webhook_controller_uses_bounded_client_and_recovers_on_redelivery_without_double_apply_bug1348()
+{
+    global $wpdb;
+
+    paymos_reset_test_state();
+    $wpdb = new FakeWpdb();
+    paymos_store_credentials(array(
+        'sandbox' => array(
+            'api_key' => 'pk_test_key',
+            'api_secret' => 'sk_test_secret',
+            'project_id' => 'prj_123',
+            'webhook_secret' => 'whsec_test',
+            'base_url' => 'https://api.paymos.io',
+        ),
+    ));
+
+    $order = new FakeOrder('15.00', 'USD');
+    $order->update_meta_data('_paymos_invoice_id', 'inv_deadline_444');
+    $order->update_meta_data('_paymos_environment', 'sandbox');
+    $order->update_meta_data('_paymos_project_id', 'prj_123');
+    $order->update_meta_data('_paymos_external_order_id', 'wc_100');
+    $order->update_meta_data('_paymos_invoice_amount', '15.00');
+    $order->update_meta_data('_paymos_invoice_currency', 'USD');
+    $GLOBALS['paymos_test_wc_orders'] = array($order);
+
+    $timestamp = time();
+    $payload = array(
+        'event_id' => 'evt_deadline_444',
+        'event_type' => 'invoice.paid',
+        'version' => 1,
+        'occurred_at' => $timestamp,
+        'data' => array(
+            'invoice_id' => 'inv_deadline_444',
+            'project_id' => 'prj_123',
+            'status' => 'paid',
+            'is_test' => true,
+            'order' => array(
+                'external_id' => 'wc_100',
+                'amount' => '15.00',
+                'currency' => 'USD',
+            ),
+            'payment' => array(
+                'transfers' => array(),
+            ),
+        ),
+    );
+    $body = json_encode($payload);
+    $signature = paymos_signed_header('whsec_test', $body, $timestamp);
+
+    $observedTimeouts = array();
+    $apiCalls = 0;
+    $GLOBALS['paymos_test_remote_handler'] = static function ($url, $args) use (&$observedTimeouts, &$apiCalls, $payload) {
+        $apiCalls++;
+        $observedTimeouts[] = $args['timeout'];
+        if ($apiCalls === 1) {
+            // Long Retry-After (60s) exceeds the 6s webhook budget — must defer immediately without sleeping.
+            return array(
+                'response' => array('code' => 429),
+                'body' => json_encode(array('error' => 'rate_limited')),
+                'headers' => array('retry-after' => '60'),
+            );
+        }
+        return array(
+            'response' => array('code' => 200),
+            'body' => json_encode($payload['data']),
+            'headers' => array(),
+        );
+    };
+
+    // First delivery hits 429 + Retry-After: 60 -> defers cleanly inside budget, releases lock & event reservation.
+    $first = WebhookController::handle(new FakeRestRequest($body, array('x-webhook-signature' => $signature)));
+    assertSameValue(400, $first->get_status(), 'deferred reverse verification must return non-2xx for webhook retry.');
+    assertSameValue(1, $apiCalls, 'long Retry-After must not trigger an early retry inside the callback.');
+    assertTrueValue($observedTimeouts[0] <= 4.0, 'webhook callback must use bounded attempt timeout (<= 4s), not 30s default.');
+    assertSameValue(false, $order->is_paid(), 'order must not complete when reverse verification deferred.');
+
+    // Redelivery succeeds and applies payment ONCE.
+    $second = WebhookController::handle(new FakeRestRequest($body, array('x-webhook-signature' => $signature)));
+    assertSameValue(200, $second->get_status(), 'redelivery must succeed once API answers within budget.');
+    assertSameValue(true, $order->is_paid(), 'order must complete after verified redelivery.');
+    $notesAfterComplete = count($order->notes);
+
+    // Third delivery is a duplicate and never triggers a second native effect.
+    $third = WebhookController::handle(new FakeRestRequest($body, array('x-webhook-signature' => $signature)));
+    assertSameValue(200, $third->get_status(), 'duplicate after commit must ACK.');
+    assertSameValue($notesAfterComplete, count($order->notes), 'duplicate delivery must not repeat native completion.');
+
+    // Normal non-webhook ClientFactory::create keeps its 30s default timeout intact.
+    $regular = \PaymosWooCommerce\ClientFactory::create(array(
+        'api_key' => 'pk_test_key',
+        'api_secret' => 'sk_test_secret',
+        'base_url' => 'https://api.paymos.io',
+    ));
+    assertTrueValue($regular instanceof \Paymos\Client, 'regular ClientFactory::create must stay intact.');
+
+    unset($GLOBALS['paymos_test_wc_orders']);
+    $GLOBALS['paymos_test_remote_handler'] = null;
+}

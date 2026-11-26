@@ -1,5 +1,7 @@
 # Paymos for WooCommerce
 
+**English** | [简体中文](README.zh-CN.md) | [Русский](README.ru.md) | [Español](README.es.md) | [Deutsch](README.de.md) | [Türkçe](README.tr.md)
+
 Official WooCommerce gateway for Paymos. It adds a stablecoin method to your
 checkout, hands the buyer to the hosted Paymos checkout page, and moves the
 WooCommerce order from a signed webhook. The buyer chooses the token and network
@@ -10,6 +12,10 @@ amount that lands is the amount you invoiced.
 Nothing in the order lifecycle depends on the buyer returning to your site. A
 closed tab, a dead phone battery and a browser crash all end the same way: the
 webhook arrives and the order updates.
+
+[![Watch: 12 Official CMS Crypto Plugins — 1-Click Connect (Paymos)](https://i.ytimg.com/vi/VMLUGVumYkg/maxresdefault.jpg)](https://www.youtube.com/watch?v=VMLUGVumYkg)
+
+> **Video walkthrough (1:12, subtitles in 6 languages):** [Watch on YouTube](https://www.youtube.com/watch?v=VMLUGVumYkg)
 
 ## Requirements
 

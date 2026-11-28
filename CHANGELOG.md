@@ -8,6 +8,13 @@ The public release history also lives at [paymos.io/changelog](https://paymos.io
 
 ## [Unreleased]
 
+## [1.9.4] - 2026-11-28
+
+- fix(woocommerce): report definitive Connect refusals instead of retrying
+
+### Fixed
+- **Connect hid a definitive refusal behind "retry" (`ConnectController`):** Any error while polling Paymos Connect, including the server's own refusal (for example the limit of 10 webhook endpoints) or a success without a usable configuration, was answered as `retry`, so the page polled until the request expired and "No active Paymos connection request" replaced the reason. Only network failures, 408, 429 and 5xx are retried now; any other answer ends the request and shows its reason.
+
 ## [1.9.3] - 2026-11-27
 
 - chore: rebuild canonical CMS package

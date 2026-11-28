@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace PaymosWooCommerce;
 
 use Paymos\Connect\DeviceConnectClient;
+use Paymos\Http\TransportInterface;
 use Paymos\Http\WordPressTransport;
 
 defined('ABSPATH') || exit;
@@ -87,9 +88,14 @@ final class ConnectController
                 throw new \RuntimeException('No active Paymos connection request.');
             }
 
+            $answer = (object) array('status' => 0);
             try {
-                $result = self::client()->poll((string) $state['device_code']);
+                $result = self::client($answer)->poll((string) $state['device_code']);
             } catch (\Throwable $exception) {
+                if (self::isFinalAnswer($answer->status)) {
+                    // Paymos answered for good: end the request and show its reason.
+                    throw $exception;
+                }
                 // A network or server failure says nothing about the device code: keep the request
                 // and let the page poll again until Paymos answers or the request expires locally.
                 wp_send_json_success(array('status' => 'retry', 'message' => $exception->getMessage()));
@@ -128,9 +134,45 @@ final class ConnectController
         }
     }
 
-    private static function client()
+    /**
+     * @param \stdClass|null $answer Receives the HTTP status of the answer Paymos gave, 0 when none arrived.
+     */
+    private static function client(?\stdClass $answer = null)
     {
-        return new DeviceConnectClient(self::CONNECT_BASE_URL, new WordPressTransport(), 15);
+        $transport = new WordPressTransport();
+        if ($answer !== null) {
+            $transport = new class($transport, $answer) implements TransportInterface {
+                private $inner;
+                private $answer;
+
+                public function __construct(TransportInterface $inner, \stdClass $answer)
+                {
+                    $this->inner = $inner;
+                    $this->answer = $answer;
+                }
+
+                public function request($method, $url, array $headers, $body, $timeoutSeconds)
+                {
+                    $response = $this->inner->request($method, $url, $headers, $body, $timeoutSeconds);
+                    $this->answer->status = $response->statusCode();
+
+                    return $response;
+                }
+            };
+        }
+
+        return new DeviceConnectClient(self::CONNECT_BASE_URL, $transport, 15);
+    }
+
+    /**
+     * Whether Paymos itself answered the poll: a success it could not use, or a
+     * 4xx other than 408/429 (its reason, such as the webhook limit). Anything
+     * else (no answer, 408, 429, 5xx) says nothing about the device code.
+     */
+    private static function isFinalAnswer(int $status): bool
+    {
+        return ($status >= 200 && $status < 300)
+            || ($status >= 400 && $status < 500 && $status !== 408 && $status !== 429);
     }
 
     private static function sourceUrl()

@@ -4,7 +4,7 @@ Tags: payments, stablecoin, usdt, usdc, woocommerce
 Requires at least: 6.5
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 1.9.3
+Stable tag: 1.9.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -55,6 +55,12 @@ No. OAuth device authorization is only a one-time credential delivery channel. R
 
 == Changelog ==
 
+= 1.9.4 =
+* fix(woocommerce): report definitive Connect refusals instead of retrying
+
+Fixed:
+* **Connect hid a definitive refusal behind "retry" (`ConnectController`):** Any error while polling Paymos Connect, including the server's own refusal (for example the limit of 10 webhook endpoints) or a success without a usable configuration, was answered as `retry`, so the page polled until the request expired and "No active Paymos connection request" replaced the reason. Only network failures, 408, 429 and 5xx are retried now; any other answer ends the request and shows its reason.
+
 = 1.9.3 =
 * chore: rebuild canonical CMS package
 
@@ -89,8 +95,5 @@ No. OAuth device authorization is only a one-time credential delivery channel. R
 * chore: rebuild canonical CMS package
 
 = 1.7.9 =
-* chore: rebuild canonical CMS package
-
-= 1.7.8 =
 * chore: rebuild canonical CMS package
 
